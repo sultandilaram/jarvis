@@ -1,5 +1,7 @@
-JARVIS 0.6.1 — local self-management preview
+JARVIS 0.6.2 — local self-management preview
 
+- Preserve source files under scripts/release while excluding generated output.
+- Test maintenance initialization against the complete production source bundle.
 - Isolated source improvement jobs followed by separate review jobs.
 - Check receipts tied to the unchanged source snapshot.
 - Ordinary documentation merges after review; explicit owner approval for sensitive changes.

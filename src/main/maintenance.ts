@@ -12,8 +12,13 @@ type Tree=Record<string,string>;
 type Change={path:string;before?:string;after?:string};
 export type Proposal={id:string;goal:string;jobId:string;base:string;state:'draft'|'reviewing'|'rejected'|'awaiting_ci'|'owner_review'|'merged'|'conflict';reviewJobId?:string;digest?:string;changes?:Change[];receipts?:string[];review?:string;commit?:string};
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
-const ignored=new Set(['.git','node_modules','dist','release','deliverables','.jarvis','.tmp','.home','.gradle','build']);
-export function safeSourcePath(p:string) {return !!p && !p.startsWith('/') && !/[\\\x00-\x1f]/.test(p) && p.split('/').every(s=>s && s!=='.' && s!=='..' && !ignored.has(s)) && !/\.(pem|key|p12|jks|keystore|sqlite|db)$/.test(p) && !/(^|\/)\.env/.test(p);}
+export function excludedSourcePath(p:string) {
+ const parts=p.split('/');
+ return parts.some(s=>['.git','node_modules','.jarvis','.tmp','.home','.gradle'].includes(s))
+  || ['dist','release','deliverables','build'].includes(parts[0])
+  || /^mobile\/android\/(?:app\/)?build(?:\/|$)/.test(p);
+}
+export function safeSourcePath(p:string) {return !!p && !excludedSourcePath(p) && !p.startsWith('/') && !/[\\\x00-\x1f]/.test(p) && p.split('/').every(s=>s && s!=='.' && s!=='..') && !/\.(pem|key|p12|jks|keystore|sqlite|db)$/.test(p) && !/(^|\/)\.env/.test(p);}
 export function sensitivePath(p:string) {
  // The ordinary merge lane is deliberately a positive list, never a collection
  // of guessed dangerous names. New integrations are owner-reviewed backend work.
@@ -24,7 +29,7 @@ export function readTree(root:string):Tree {
  root=realpathSync(root);
  const executable=realpathSync(process.execPath);
  const tools=executable.includes('.app/Contents/')?[executable.split('.app/Contents/')[0]+'.app']:[dirname(dirname(executable))];
- const script=String.raw`const fs=require('node:fs'),path=require('node:path');const root=process.argv[1],out={},ignored=new Set(['.git','node_modules','dist','release','deliverables','.jarvis','.tmp','.home','.gradle','build']);let total=0;function walk(relative){for(const item of fs.readdirSync(path.join(root,relative),{withFileTypes:true})){if(ignored.has(item.name))continue;const name=relative?relative+'/'+item.name:item.name; if(/[\\\x00-\x1f]/.test(name)||name.split('/').some(p=>p==='..'||p==='.')||/\.(pem|key|p12|jks|keystore|sqlite|db)$/.test(name)||/(^|\/)\.env/.test(name))throw Error('Unsafe source path');const p=path.join(root,name),st=fs.lstatSync(p);if(st.isSymbolicLink())throw Error('Source symlinks are not accepted');if(st.isDirectory())walk(name);else if(st.isFile()){if(st.size>4194304||Object.keys(out).length>=1000||(total+=st.size)>20971520)throw Error('Source snapshot exceeds limit');const fd=fs.openSync(p,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK);try{const bytes=fs.readFileSync(fd);if(bytes.length>4194304)throw Error('File grew during snapshot');out[name]=bytes.toString('base64');}finally{fs.closeSync(fd);}}else throw Error('Unsupported source file');}}walk('');process.stdout.write(JSON.stringify(out));`;
+ const script=String.raw`const fs=require('node:fs'),path=require('node:path');const root=process.argv[1],out={},excluded=${excludedSourcePath.toString()};let total=0;function walk(relative){for(const item of fs.readdirSync(path.join(root,relative),{withFileTypes:true})){const name=relative?relative+'/'+item.name:item.name;if(excluded(name))continue; if(/[\\\x00-\x1f]/.test(name)||name.split('/').some(p=>p==='..'||p==='.')||/\.(pem|key|p12|jks|keystore|sqlite|db)$/.test(name)||/(^|\/)\.env/.test(name))throw Error('Unsafe source path');const p=path.join(root,name),st=fs.lstatSync(p);if(st.isSymbolicLink())throw Error('Source symlinks are not accepted');if(st.isDirectory())walk(name);else if(st.isFile()){if(st.size>4194304||Object.keys(out).length>=1000||(total+=st.size)>20971520)throw Error('Source snapshot exceeds limit');const fd=fs.openSync(p,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK);try{const bytes=fs.readFileSync(fd);if(bytes.length>4194304)throw Error('File grew during snapshot');out[name]=bytes.toString('base64');}finally{fs.closeSync(fd);}}else throw Error('Unsupported source file');}}walk('');process.stdout.write(JSON.stringify(out));`;
  const data=execFileSync('/usr/bin/sandbox-exec',['-p',projectSandbox(root,tools),executable,'-e',script,root],{encoding:'utf8',maxBuffer:32*1024*1024,timeout:15000,env:{PATH:'/usr/bin:/bin',ELECTRON_RUN_AS_NODE:'1',OPENSSL_CONF:'/dev/null'},stdio:['ignore','pipe','pipe']});
  const tree=JSON.parse(data) as Tree;
  for(const [p,data] of Object.entries(tree)){

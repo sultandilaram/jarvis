@@ -1,6 +1,6 @@
 {
   "name": "jarvis-desktop",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "private": true,
   "description": "Local-first personal desktop agent with voice, controlled tools and an Android companion",
   "main": "dist/main.cjs",

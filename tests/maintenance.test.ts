@@ -7,6 +7,8 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { Store } from '../src/main/store.ts';
 import { Maintenance, readTree, treeDigest, sensitivePath, safeSourcePath } from '../src/main/maintenance.ts';
+import {execFileSync} from 'node:child_process';
+import {resolve} from 'node:path';
 function fixture(){const root=mkdtempSync(join(tmpdir(),'jarvis-maintenance-'));const store=new Store(':memory:');let current:any;
  const jobs:any={current:()=>current,enqueue:(args:any,_user:any,paused:boolean)=>{assert(paused);const id=randomUUID(),workspace=join(root,id);mkdirSync(workspace);return {id,workspace,...args};},control:async()=>{},save:()=>{}};
  const seed=join(root,'seed.json');writeFileSync(seed,JSON.stringify({schema:1,version:'0.6.0',files:{'README.md':Buffer.from('original').toString('base64'),'package.json':Buffer.from('{}').toString('base64')}}));
@@ -16,6 +18,18 @@ test('maintenance ordinary lane is a positive list; policy and backend changes n
  assert(sensitivePath('src/renderer/style.css'));assert(!sensitivePath('README.md'));
  for(const p of ['src/main/main.ts','.github/workflows/ci.yml','tests/security.test.ts','package.json','docs/MAINTENANCE.md','native/CredentialVault.swift','mobile/web/app.tsx'])assert(sensitivePath(p));
  for(const p of ['../outside','src/../../key','/tmp/file','.env','.jarvis/key','file.pem','src\\bad'])assert(!safeSourcePath(p));
+});
+test('source release tooling is allowed while generated output and private caches stay excluded',()=>{
+ for(const p of ['scripts/release/build.mjs','scripts/release/installer.cjs','src/build/helper.ts'])assert(safeSourcePath(p),p);
+ for(const p of ['release/JARVIS.app','dist/main.cjs','deliverables/app.apk','mobile/android/build/output.txt','mobile/android/app/build/output.apk','src/node_modules/key.txt','.jarvis/private/identity.json'])assert(!safeSourcePath(p),p);
+});
+test('the complete production source bundle survives maintenance initialization and snapshotting',{skip:process.platform!=='darwin'},()=>{
+ const f=fixture();try{
+  execFileSync(process.execPath,['scripts/export-source.mjs','--bundle'],{cwd:resolve('.'),stdio:'pipe',env:{...process.env,OPENSSL_CONF:'/dev/null'}});
+  const seed=JSON.parse(readFileSync(resolve('dist/maintenance-source.json'),'utf8'));
+  assert(seed.files['scripts/release/build.mjs']);writeFileSync(f.m.seed,JSON.stringify(seed));f.m.ensure();
+  const snapshot=readTree(f.m.root);assert.equal(treeDigest(snapshot),treeDigest(seed.files));assert.equal(snapshot['scripts/release/build.mjs'],seed.files['scripts/release/build.mjs']);
+ }finally{f.close();}
 });
 test('source snapshots reject symlinks and secrets',{skip:process.platform!=='darwin'},()=>{const f=fixture();try{const dir=join(f.root,'snap');mkdirSync(dir);symlinkSync('/etc/passwd',join(dir,'link'));assert.throws(()=>readTree(dir));rmSync(join(dir,'link'));writeFileSync(join(dir,'key.txt'),['-----BEGIN','PRIVATE KEY-----'].join(' '));assert.throws(()=>readTree(dir));}finally{f.close();}});
 test('proposer cannot review itself; receipts and exact snapshot are required before ordinary merge',{skip:process.platform!=='darwin'},async()=>{const f=fixture();try{
