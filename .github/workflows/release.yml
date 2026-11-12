@@ -1,0 +1,39 @@
+name: Release candidate and publish
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: jarvis-release
+  cancel-in-progress: false
+jobs:
+  release:
+    # Disabled until an owner configures protected tags, environment reviewers,
+    # a dedicated trusted runner and the private persistent signing state.
+    if: github.repository == 'sultandilaram/jarvis' && github.ref_type == 'tag' && github.ref_protected && vars.JARVIS_RELEASES_ENABLED == 'true'
+    runs-on: [self-hosted, macOS, ARM64, jarvis-release]
+    environment: jarvis-release
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Attach private build state
+        env:
+          JARVIS_RELEASE_STATE_DIR: ${{ vars.JARVIS_RELEASE_STATE_DIR }}
+        run: node scripts/release/attach-state.mjs
+      - name: Build and sign candidate
+        run: npm run release:candidate
+      - name: Publish complete release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          JARVIS_RELEASE_TAG: ${{ github.ref_name }}
+        run: node scripts/release/publish-approved.mjs
