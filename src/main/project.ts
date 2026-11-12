@@ -94,6 +94,7 @@ export class ProjectService {
             HOME: root,
             LANG: "en_US.UTF-8",
             ELECTRON_RUN_AS_NODE: "1",
+            OPENSSL_CONF: "/dev/null",
           },
           signal,
           timeout: 10000,
@@ -393,6 +394,7 @@ export class ProjectService {
           LANG: "en_US.UTF-8",
           CI: "1",
           ELECTRON_RUN_AS_NODE: "1",
+            OPENSSL_CONF: "/dev/null",
         };
         const proxy = network ? await projectNetwork() : undefined;
         if (signal.aborted) {

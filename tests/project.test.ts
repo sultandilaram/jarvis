@@ -216,3 +216,9 @@ test(
     }
   },
 );
+test('isolated Node uses a clean OpenSSL configuration instead of host configuration',native,async()=>{
+ const f=await fixture();try{
+  const p=await f.service.plan('project.exec',{command:['node','-e','process.stdout.write(process.env.OPENSSL_CONF)']});
+  const r:any=await p.run(new AbortController().signal);assert.equal(r.exitCode,0);assert.equal(r.stdout,'/dev/null');
+ }finally{await f.close();}
+});
