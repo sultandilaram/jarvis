@@ -4,7 +4,7 @@ A local-first, voice-centered personal desktop agent with an Android companion.
 Codex performs task reasoning; JARVIS provides persistent jobs, controlled desktop
 and browser tools, isolated project workspaces, approvals and phone coordination.
 
-**Status: experimental macOS Apple Silicon / Android test release.** Local self-maintenance and signed update support are implemented in 0.6.0;
+**Status: experimental macOS Apple Silicon / Android test release [0.6.2](https://github.com/sultandilaram/jarvis/releases/tag/v0.6.2), now published.** Local self-maintenance and signed update support are implemented in 0.6.2;
 unattended GitHub maintenance requires separate configured GitHub Apps and branch
 protections. Public release infrastructure is still being commissioned.
 This independent project is not affiliated with Marvel or OpenAI.
