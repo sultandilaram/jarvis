@@ -9,6 +9,10 @@ const run=(exe,args)=>execFileSync(exe,args,{stdio:'inherit'});
 execFileSync('/usr/bin/git',['rev-parse','--verify','HEAD'],{stdio:'ignore'});
 if(execFileSync('/usr/bin/git',['status','--porcelain'],{encoding:'utf8'}).trim())throw Error('Commit reviewed source before building a release.');
 run('npm',['ci']);run('npm',['run','typecheck']);run('npm',['test']);
+// A fresh checkout has no dist/native cache. Restore verified public runtime
+// assets explicitly instead of relying on leftovers from the owner's workspace.
+run('/usr/bin/python3',['scripts/setup-wake.py']);
+run('/usr/bin/python3',['scripts/setup-remote.py']);
 run(process.execPath,['scripts/build-mobile.mjs']);
 run('npm',['run','package:local']);run(process.execPath,['scripts/create-dmg.mjs']);run(process.execPath,['scripts/deliver.mjs']);
 const directory=resolve('.jarvis/release-candidate');await rm(directory,{recursive:true,force:true});await mkdir(directory,{recursive:true,mode:0o700});
