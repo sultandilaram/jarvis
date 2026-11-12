@@ -33,6 +33,7 @@ export class DesktopService {
   browser = new ControlledBrowser();
   files: FileAccess;
   broker: DesktopBroker;
+  integrationPlanner?: import("./broker.ts").ActionPlanner;
   maintenancePlanner?: import("./broker.ts").ActionPlanner;
   memoryPlanner?: import("./broker.ts").ActionPlanner;
   jobPlanner?: import("./broker.ts").ActionPlanner;
@@ -63,6 +64,10 @@ export class DesktopService {
     args: Record<string, unknown>,
     signal: AbortSignal,
   ): Promise<ActionPlan> {
+    if (action.startsWith("email.") || action.startsWith("calendar.") || action==="accounts.status") {
+      if(!this.integrationPlanner)throw Error("Account connections are not ready.");
+      return this.integrationPlanner(action,args,signal);
+    }
     if (action.startsWith("repo.")) {
       if (!this.maintenancePlanner) throw Error("Maintenance is not ready.");
       return this.maintenancePlanner(action,args,signal);

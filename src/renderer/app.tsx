@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import type { Approval, Snapshot, Settings, VoiceEvent } from "../shared/types";
 import { Voice, type VoiceState } from "./voice";
+import { GoogleSettings } from "./google-settings";
 import { MaintenanceSettings } from "./maintenance-settings";
 import { UpdateSettings } from "./update-settings";
 import { JobsPanel } from "./jobs";
@@ -943,6 +944,7 @@ function App() {
             <X size={20} />
           </button>
           <h2>Workspace settings</h2>
+          <GoogleSettings state={state.google} />
           <MaintenanceSettings state={state} run={run} />
           <UpdateSettings state={state} voiceBusy={voiceState !== "off"} run={run} />
           <WatchSettings state={state} run={run} />

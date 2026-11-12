@@ -2,6 +2,12 @@ import { contextBridge, ipcRenderer } from "electron";
 const invoke = (name: string, ...args: unknown[]) =>
   ipcRenderer.invoke(`jarvis:${name}`, ...args);
 contextBridge.exposeInMainWorld("jarvis", {
+  googleConfigure: () => invoke("googleConfigure"),
+  googleSetup: () => invoke("googleSetup"),
+  googleManageAccess: () => invoke("googleManageAccess"),
+  googleConnect: (service:string,write:boolean) => invoke("googleConnect",service,write),
+  googleCancel: () => invoke("googleCancel"),
+  googleDisconnect: (service:string) => invoke("googleDisconnect",service),
   configureReleaseBuildState: () => invoke("configureReleaseBuildState"),
   buildRelease: () => invoke("buildRelease"),
   openReleaseLog: () => invoke("openReleaseLog"),

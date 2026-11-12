@@ -74,6 +74,7 @@ export type RemoteState = {
   pending: { id: string; name: string; code: string; expires: number } | null;
 };
 export type Snapshot = {
+  google?: import("../main/integrations/google.ts").GoogleState;
   releases?: Omit<import("../main/local-releases.ts").LocalReleaseState,"log"> & {configured:boolean};
   maintenance?: ReturnType<import("../main/maintenance.ts").Maintenance["summary"]>;
   updates?: import("../main/updater.ts").UpdateState;
@@ -114,6 +115,12 @@ export type VoiceEvent = {
   createdAt: string;
 };
 export type Api = {
+  googleConfigure(): Promise<void>;
+  googleSetup(): Promise<void>;
+  googleManageAccess(): Promise<void>;
+  googleConnect(service:"gmail"|"calendar",write:boolean): Promise<void>;
+  googleCancel(): Promise<void>;
+  googleDisconnect(service:"gmail"|"calendar"): Promise<void>;
   configureReleaseBuildState():Promise<unknown>;
   buildRelease():Promise<unknown>;
   openReleaseLog():Promise<unknown>;

@@ -1,3 +1,27 @@
+JARVIS 0.7.0 — Google account connections
+
+- Separate Gmail and Google Calendar connections in desktop Settings.
+- System-browser desktop OAuth with PKCE and a temporary local callback.
+- Tokens encrypted using the existing Mac credential vault; no tokens on the phone.
+- Read-only connections by default, Gmail search/plain-text reading and primary-calendar events.
+- Optional email sending and event creation, each behind exact one-time action approval.
+- Account changes invalidate pending actions; isolated project workers cannot access accounts.
+- Connection cancellation, reconnect/disconnect controls and AI/history privacy disclosure.
+
+Google connections require your own Desktop OAuth client, enabled APIs, browser sign-in
+and consent. No Google account is bundled or connected automatically. Email/calendar
+content requested in a task may enter local history and the configured AI service.
+Existing-event edits/deletion, attachments and inbox/calendar monitoring are not added.
+Personal OAuth Testing refresh tokens expire after seven days. Public distribution
+requires a separate Google verification/privacy review. Real-account commissioning
+remains a user acceptance step after installing the feature.
+
+Source and release changes retain owner-review and exact-commit build approval.
+The Mac build is locally signed, not Apple notarized; five moderate development-
+packaging advisories remain under review. This is an experimental test release.
+
+--- Previous release ---
+
 JARVIS 0.6.2 — local self-management preview
 
 - Preserve source files under scripts/release while excluding generated output.
