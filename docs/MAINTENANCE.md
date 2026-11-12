@@ -47,3 +47,11 @@ Typecheck, tests and build. No app bypass. Source publication asks for an exact
 approval, then creates a PR bound to the reviewed diff. After CI the separate app
 identity approves it; ordinary docs may merge. Sensitive changes additionally wait
 for the actual owner review on GitHub. PR head drift requires new review.
+
+The project reviewer remains isolated from local services. If full tests need
+capabilities blocked by that sandbox, `accept_for_ci` records a conditional
+review after successful typecheck and build on the unchanged snapshot. This
+state cannot merge locally. Publication still requires approval, and trusted
+GitHub Actions must pass the full test suite on the exact PR commit before the
+separate GitHub reviewer approves or any remote merge occurs. A pending hosted
+test is never represented as a successful local test.
