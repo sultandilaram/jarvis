@@ -48,3 +48,10 @@ test('verified metadata supports current Mac / older Android and downloaded byte
   await u.check();u.fetchBytes=async()=>Buffer.from('tampered');await assert.rejects(u.download());assert.equal(u.state.phase,'available');
  }finally{await rm(root,{recursive:true,force:true});}
 });
+test('GitHub API checks request JSON while release assets request binary media',async(t)=>{
+ const seen:any[]=[];t.mock.method(globalThis,'fetch',async(url:any,init:any)=>{seen.push({host:new URL(url).hostname,accept:init.headers.Accept});return new Response('{}',{status:200});});
+ const {githubBytes}=await import('../src/main/releases.ts');
+ await githubBytes('https://api.github.com/repos/sultandilaram/jarvis/releases/latest',100);
+ await githubBytes('https://github.com/sultandilaram/jarvis/releases/download/v0.6.1/release.json',100);
+ assert.deepEqual(seen,[{host:'api.github.com',accept:'application/vnd.github+json'},{host:'github.com',accept:'application/octet-stream'}]);
+});

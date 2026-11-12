@@ -38,7 +38,7 @@ export async function githubBytes(url: string, maximum: number, signal?: AbortSi
   const allowed=(u:URL)=>u.protocol==='https:' && !u.username && !u.password && (!u.port || u.port==='443') && ['api.github.com','github.com','release-assets.githubusercontent.com','objects.githubusercontent.com'].includes(u.hostname);
   for(let hop=0;hop<5;hop++) {
     if(!allowed(current)) throw Error('Update redirect left the allowed GitHub hosts.');
-    const r=await fetch(current,{redirect:'manual',headers:{'User-Agent':'JARVIS-updater','Accept':'application/octet-stream'},signal:AbortSignal.any([AbortSignal.timeout(120000),...(signal?[signal]:[])])});
+    const r=await fetch(current,{redirect:'manual',headers:{'User-Agent':'JARVIS-updater','Accept':current.hostname==='api.github.com'?'application/vnd.github+json':'application/octet-stream'},signal:AbortSignal.any([AbortSignal.timeout(120000),...(signal?[signal]:[])])});
     if([301,302,303,307,308].includes(r.status)) {const location=r.headers.get('location'); await r.body?.cancel(); if(!location)throw Error('Invalid update redirect.'); current=new URL(location,current); continue;}
     if(!r.ok) {await r.body?.cancel();throw Error(r.status===404?'No public release is available yet.':`GitHub returned HTTP ${r.status}.`);}
     if(Number(r.headers.get('content-length')||0)>maximum){await r.body?.cancel();throw Error('Update response exceeds its size limit.');}
