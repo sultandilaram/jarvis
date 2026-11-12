@@ -36,3 +36,17 @@ test('sensitive source merges require actual owner approval and reject source dr
  await f.m.review(f.m.get(p.id),'accept','Sensitive dependency change needs owner approval.');assert.equal(f.m.get(p.id).state,'owner_review');assert.throws(()=>f.m.merge(p.id,false));
  writeFileSync(join(f.m.root,'README.md'),'changed after review');assert.throws(()=>f.m.merge(p.id,true));assert.equal(f.m.get(p.id).state,'conflict');
  }finally{f.close();}});
+test('hosted-test handoff needs exact local receipts and GitHub; it never permits local merge',{skip:process.platform!=='darwin'},async()=>{const f=fixture();try{
+ const started=await f.m.start('Improve readme with hosted tests');let p=f.m.get(started.proposalId);
+ f.setCurrent({id:p.jobId,workspace:join(f.root,p.jobId)});writeFileSync(join(f.root,p.jobId,'README.md'),'hosted review');await f.m.submit(p);p=f.m.get(p.id);
+ const reviewer={id:p.reviewJobId,workspace:join(f.root,p.reviewJobId!)};f.setCurrent(reviewer);
+ await assert.rejects(f.m.review(p,'accept_for_ci','Tests bind sockets blocked by isolation.'),/configured/);
+ f.m.githubReady=()=>true;let published=0;f.m.publishGitHub=async()=>{published++;return {} as any;};
+ await assert.rejects(f.m.review(p,'accept_for_ci','Typecheck has not run.'),/Typecheck and build/);
+ for(const a of [['npm','run','typecheck'],['npm','run','build']])f.m.receipt(reviewer as any,a,'.',p.digest!,{verified:true,exitCode:0});
+ await f.m.review(f.m.get(p.id),'accept_for_ci','Typecheck and build passed; full tests require trusted CI.');
+ p=f.m.get(p.id);assert.equal(p.state,'awaiting_ci');assert.equal(p.receipts?.length,2);assert.equal(published,0);
+ assert.throws(()=>f.m.merge(p.id,false));assert.throws(()=>f.m.merge(p.id,true));
+ const plan=await f.m.plan('repo.publish',{proposalId:p.id});assert.equal(plan.approval,true);await plan.run(new AbortController().signal);assert.equal(published,1);
+ assert.equal(readFileSync(join(f.m.root,'README.md'),'utf8'),'original');
+ }finally{f.close();}});

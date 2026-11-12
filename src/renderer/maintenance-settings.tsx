@@ -18,7 +18,7 @@ export function MaintenanceSettings({state,run}:{state:Snapshot;run:(fn:()=>Prom
   {state.releases?.phase==='failed'&&<button onClick={()=>run(()=>window.jarvis.openReleaseLog())}>Open private build log</button>}
   {!state.maintenance?.proposals.length&&<p>No source improvements proposed yet.</p>}
   {state.maintenance?.proposals.map(p=><div className="maintenance-proposal" key={p.id}>
-   <h3>{p.goal}</h3><p>{({draft:'Coding',reviewing:'Independent review',owner_review:'Needs your source review',merged:'Merged locally',rejected:'Review rejected',conflict:'Source changed · new review needed'} as const)[p.state]}</p>
+   <h3>{p.goal}</h3><p>{({draft:'Coding',reviewing:'Independent review',awaiting_ci:'Full tests pending on GitHub · local merge blocked',owner_review:'Needs your source review',merged:'Merged locally',rejected:'Review rejected',conflict:'Source changed · new review needed'} as const)[p.state]}</p>
    <p className="muted">{p.checks.length} of 3 required checks recorded</p>
    {p.changes?.length?<button disabled={loading} onClick={()=>inspect(p.id)}>Review source changes</button>:null}
   </div>)}

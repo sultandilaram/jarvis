@@ -94,7 +94,7 @@ export class GitHubMaintenance {
   if(pr.head?.sha!==p.head||pr.base?.ref!=='main'||pr.state!=='open')return {...p,state:'failed',error:'PR target or reviewed commit changed; repeat review.'};
   const checks=await this.api(base+'/commits/'+p.head+'/check-runs?per_page=100',token);
   if(!checksPassed(checks.check_runs||[],p.head))return p;
-  if(!p.reviewed){const reviewer=await this.token('reviewer');await this.api(base+'/pulls/'+p.number+'/reviews',reviewer,'POST',{event:'APPROVE',commit_id:p.head,body:'Separate JARVIS reviewer identity: local independent review and immutable-snapshot command receipts passed, followed by trusted GitHub CI on this exact commit. Sensitive changes additionally require owner/code-owner approval.'});p={...p,reviewed:true};}
+  if(!p.reviewed){const reviewer=await this.token('reviewer');await this.api(base+'/pulls/'+p.number+'/reviews',reviewer,'POST',{event:'APPROVE',commit_id:p.head,body:'Separate JARVIS reviewer identity: local independent review and recorded immutable-snapshot checks completed, followed by the full trusted GitHub CI suite on this exact commit. Sensitive changes additionally require owner/code-owner approval.'});p={...p,reviewed:true};}
   // Do not attempt owner approval with an app identity. The actual owner must
   // approve sensitive source on GitHub. The merge API still enforces all rules.
   if(p.sensitive){const reviews=await this.api(base+'/pulls/'+p.number+'/reviews?per_page=100',token);const owner=reviews.filter((r:any)=>r.user?.login==='sultandilaram'&&r.commit_id===p.head).at(-1);if(owner?.state!=='APPROVED')return {...p,state:'waiting_owner'};}
