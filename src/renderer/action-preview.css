@@ -1,0 +1,99 @@
+.action-preview {
+  min-width: 0;
+  color: #d6e8ef;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.action-preview dl {
+  margin: 16px 0;
+}
+.preview-field {
+  margin: 0 0 16px;
+}
+.preview-field dt {
+  font-weight: 600;
+  color: #d6e8ef;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+.preview-field dd {
+  margin: 0;
+  min-width: 0;
+}
+.action-preview pre {
+  font:
+    13px/1.6 ui-monospace,
+    SFMono-Regular,
+    monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 240px;
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
+  background: #07141d;
+  color: #d5e7ee;
+  border: 1px solid #3c5665;
+  border-radius: 4px;
+  user-select: text;
+}
+.preview-operation,
+.preview-reason,
+.preview-none {
+  color: #b4cbd6 !important;
+  font-size: 14px !important;
+  overflow-wrap: anywhere;
+}
+.technical-preview {
+  margin: 16px 0;
+}
+.technical-preview summary {
+  font-size: 13px;
+  cursor: pointer;
+  color: #a9c7d6;
+  padding: 8px 0;
+}
+.technical-preview pre {
+  margin-top: 8px;
+}
+.approval-buttons {
+  position: sticky;
+  bottom: 0;
+  background: #181c1d;
+  padding: 12px 0 4px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-top: 1px solid #695336;
+  z-index: 2;
+}
+.approval-buttons button {
+  min-height: 44px;
+  flex: 1;
+  margin: 0 !important;
+}
+.approval-phrase {
+  display: block;
+  font-size: 13px !important;
+  line-height: 1.6;
+  color: #e7c797 !important;
+  margin: 12px 0;
+}
+.approval-card h3,
+.approval h2 {
+  overflow-wrap: anywhere;
+}
+.preview-object {
+  padding-inline-start: 12px;
+  border-inline-start: 1px solid #3c5665;
+}
+.preview-object .preview-field dt {
+  font-size: 13px;
+}
+.preview-list {
+  padding-inline-start: 22px;
+  margin: 8px 0;
+}
+.preview-list > li {
+  padding-block-end: 12px;
+}

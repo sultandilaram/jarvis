@@ -1,0 +1,25 @@
+# Server-side rules must require code-owner approval, dismiss stale approvals,
+# and prohibit the maintenance identity from bypassing these rules.
+/.github/ @sultandilaram
+/src/ @sultandilaram
+/scripts/ @sultandilaram
+/package.json @sultandilaram
+/package-lock.json @sultandilaram
+/native/ @sultandilaram
+/src/main/ @sultandilaram
+/src/shared/ @sultandilaram
+/src/renderer/voice.ts @sultandilaram
+/src/renderer/action-preview.tsx @sultandilaram
+/src/renderer/remote-settings.tsx @sultandilaram
+/mobile/ @sultandilaram
+/tests/ @sultandilaram
+/LICENSE @sultandilaram
+/NOTICE @sultandilaram
+/SECURITY.md @sultandilaram
+/SELF-MANAGEMENT.md @sultandilaram
+/docs/MAINTENANCE.md @sultandilaram
+# Conservative initial boundary: widen ordinary auto-merge eligibility only
+# after trusted review; arbitrary backend changes can affect approval safety.
+
+/docs/PUBLIC-MACOS.md @sultandilaram
+/docs/SOURCE-VERIFICATION.md @sultandilaram

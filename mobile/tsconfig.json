@@ -1,0 +1,1 @@
+{"extends":"../tsconfig.json","compilerOptions":{"types":["node"],"noEmit":true},"include":["web/**/*.ts","web/**/*.tsx","../src/shared/**/*.ts","../src/renderer/voice.ts"],"exclude":[]}

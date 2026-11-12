@@ -1,0 +1,15 @@
+JARVIS 0.6.0 — local self-management preview
+
+- Isolated source improvement jobs followed by separate review jobs.
+- Check receipts tied to the unchanged source snapshot.
+- Ordinary documentation merges after review; explicit owner approval for sensitive changes.
+- Source history remains separate from the installed app; local mode does not publish to GitHub.
+- Signed GitHub release discovery, artifact verification and approved Mac installation.
+- App identity and the fixed credential vault are checked before installation.
+- Failed launch checks stop the owned new app and restore the previous app.
+- Public source export, DMG packaging and locally signed release candidate tools.
+
+GitHub account connection, protected server rules and hosted publication remain pending.
+The current Mac build uses a local certificate, not Apple notarization. Android updates use
+normal Android installation approval. Five moderate development-packaging advisories
+remain under review; this is an experimental test release.

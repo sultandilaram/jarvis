@@ -1,0 +1,53 @@
+{
+  "name": "jarvis-desktop",
+  "version": "0.6.0",
+  "private": true,
+  "description": "Local-first personal desktop agent with voice, controlled tools and an Android companion",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "npm run build && electron .",
+    "typecheck": "tsc --noEmit && tsc -p mobile/tsconfig.json --noEmit",
+    "test": "node --experimental-transform-types --test tests/*.test.ts",
+    "smoke": "npm run build && node scripts/inspect.mjs",
+    "inspect": "node scripts/inspect.mjs",
+    "test:controls": "npm run build && node scripts/control-check.mjs",
+    "package": "npm run build && node scripts/package.mjs",
+    "setup:wake": "python3 scripts/setup-wake.py",
+    "test:wake": "node scripts/test-wake.mjs",
+    "test:desktop": "npm run build && node scripts/test-desktop.mjs",
+    "setup:android": "python3 scripts/setup-android.py",
+    "setup:remote": "python3 scripts/setup-remote.py",
+    "build:mobile": "node scripts/build-mobile.mjs",
+    "setup:local-signing": "node scripts/mac/local-signing.mjs init",
+    "package:local": "npm run build && node scripts/package.mjs --local",
+    "install:local": "node scripts/mac/install-local.mjs",
+    "test:signing": "node scripts/mac/check-identity.mjs",
+    "release:candidate": "node scripts/release/build.mjs",
+    "release:publish": "node scripts/release/publish.mjs",
+    "release:dmg": "node scripts/create-dmg.mjs",
+    "source:export": "node scripts/export-source.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "qrcode": "^1.5.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "ws": "^8.22.2"
+  },
+  "devDependencies": {
+    "@electron/osx-sign": "2.7.2",
+    "@electron/packager": "^20.3.0",
+    "@types/node": "^24.0.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/ws": "^8.18.2",
+    "electron": "45.3.0",
+    "esbuild": "^0.25.0",
+    "playwright-core": "^1.56.0",
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.0"
+  },
+  "type": "module"
+}

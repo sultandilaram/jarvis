@@ -1,0 +1,5 @@
+package com.sultan.jarvis.mobile;
+import android.content.Context;import com.google.firebase.*;import com.google.firebase.messaging.FirebaseMessaging;import org.json.JSONObject;
+final class FirebaseRegistration{
+ static void configure(Context c,String raw){try{JSONObject v=new JSONObject(raw);c.getSharedPreferences("push",0).edit().putString("config",raw).apply();if(!FirebaseApp.getApps(c).isEmpty()&&!FirebaseApp.getInstance().getOptions().getApplicationId().equals(v.getString("appId")))FirebaseApp.getInstance().delete();if(FirebaseApp.getApps(c).isEmpty())FirebaseApp.initializeApp(c,new FirebaseOptions.Builder().setApiKey(v.getString("apiKey")).setApplicationId(v.getString("appId")).setProjectId(v.getString("projectId")).setGcmSenderId(v.getString("senderId")).build());FirebaseMessaging.getInstance().getToken().addOnSuccessListener(token->{c.getSharedPreferences("push",0).edit().putString("token",token).apply();VoiceService.emit("pushToken",token);}).addOnFailureListener(e->VoiceService.emit("pushError","Push registration failed; check Firebase configuration."));}catch(Exception e){VoiceService.emit("pushError","Firebase configuration is unavailable.");}}
+}
