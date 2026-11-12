@@ -1,4 +1,4 @@
-JARVIS 0.6.0 — local self-management preview
+JARVIS 0.6.1 — local self-management preview
 
 - Isolated source improvement jobs followed by separate review jobs.
 - Check receipts tied to the unchanged source snapshot.
@@ -7,6 +7,7 @@ JARVIS 0.6.0 — local self-management preview
 - Signed GitHub release discovery, artifact verification and approved Mac installation.
 - App identity and the fixed credential vault are checked before installation.
 - Failed launch checks stop the owned new app and restore the previous app.
+- Fresh-checkout runtime assets and UUID-safe dependency license packaging.
 - Public source export, DMG packaging and locally signed release candidate tools.
 
 GitHub maintenance requires separate proposer/reviewer identities and enforced owner

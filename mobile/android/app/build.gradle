@@ -3,7 +3,7 @@ android {
  namespace 'com.sultan.jarvis.mobile'
  compileSdk 35
  buildFeatures { buildConfig true }
- defaultConfig { applicationId 'com.sultan.jarvis.mobile'; minSdk 26; targetSdk 35; versionCode 11; versionName '0.6.0-test' }
+ defaultConfig { applicationId 'com.sultan.jarvis.mobile'; minSdk 26; targetSdk 35; versionCode 12; versionName '0.6.1-test' }
  signingConfigs { testRelease { storeFile file(System.getenv('JARVIS_SIGNING_STORE')); storePassword System.getenv('JARVIS_STORE_PASSWORD'); keyAlias 'jarvis-test'; keyPassword System.getenv('JARVIS_STORE_PASSWORD') } }
  buildTypes { release { minifyEnabled false; signingConfig signingConfigs.testRelease } }
  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
