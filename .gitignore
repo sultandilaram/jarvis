@@ -1,6 +1,6 @@
 node_modules/
 dist/
-.jarvis/
+.jarvis
 *.log
 .env
 .DS_Store

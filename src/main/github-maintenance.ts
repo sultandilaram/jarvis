@@ -57,7 +57,7 @@ export class GitHubMaintenance {
   if(!/^[a-f0-9]{40}$/.test(expectedCommit)||checked.commit!==expectedCommit)throw Error('Main source changed after release approval. Review the exact commit again.');
   const token=await this.token('proposer');
   await this.api('/repos/'+maintenanceRepository+'/git/refs',token,'POST',{ref:'refs/tags/v'+version,sha:checked.commit});
-  return {tag:'v'+version,commit:checked.commit,effect:'Tag created. Protected release build and owner environment approval are still required; publication is not confirmed.'};
+  return {tag:'v'+version,commit:checked.commit,effect:'Tag created. An owner-approved local signing build or the separately configured protected release workflow is still required; publication is not confirmed.'};
  }
 
  async publish({proposalId,goal,changes,review,sensitive}:{proposalId:string;goal:string;changes:PullChange[];review:string;sensitive:boolean}):Promise<PendingPull>{

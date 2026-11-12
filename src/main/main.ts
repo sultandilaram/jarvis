@@ -1,3 +1,4 @@
+import { LocalReleases, validateBuildState } from "./local-releases.ts";
 import { GitHubMaintenance, type GitHubMaintenanceCredentials, type PendingPull } from "./github-maintenance.ts";
 import { Maintenance, readTree, treeDigest, sensitivePath as importSensitivePath } from "./maintenance.ts";
 import { assetURL } from "./releases.ts";
@@ -63,6 +64,7 @@ let maintenance: Maintenance;
 let githubMaintenance: GitHubMaintenance;
 let githubTimer: ReturnType<typeof setInterval>;
 let githubTickBusy=false;
+let localReleases: LocalReleases;
 let updateTimer: ReturnType<typeof setInterval>;
 let updateInstalling = false;
 let agent: Orchestrator;
@@ -96,6 +98,7 @@ function snapshot() {
     ...agent.snapshot(),
     updates: updater?.state,
     maintenance: maintenance?.summary(),
+    releases: localReleases?{...localReleases.state,log:undefined,configured:!!store.get("releaseBuildStateDirectory",null)}:undefined,
     watches: watches?.snapshot(),
     remote: remote?.state(),
     desktop: {
@@ -369,6 +372,7 @@ async function stopCurrent() {
   else await agent.stop();
 }
 async function stop() {
+  localReleases?.stop();
   monitors?.pauseAll();
   watches?.pauseAll();
   void remote?.gateway.push({ type: "endVoice" });
@@ -446,9 +450,15 @@ app.whenReady().then(async () => {
     if(!existsSync(githubKeyPath))throw Error("JARVIS GitHub maintenance identities are not configured.");
     return JSON.parse(await decryptSecret(readFileSync(githubKeyPath))) as GitHubMaintenanceCredentials;
   });
+  localReleases=new LocalReleases(join(data,"ReleaseBuilds"),()=>store.get<string|undefined>("releaseBuildStateDirectory",undefined),githubMaintenance,(result)=>{store.set("localReleaseState",result);publishBackground();},store.get("localReleaseState",undefined));
+  maintenance.builderState=()=>({...localReleases.state,log:undefined,configured:!!store.get("releaseBuildStateDirectory",null)});
+  maintenance.buildRelease=(version,commit,signal)=>localReleases.build(version,commit,signal);
   maintenance.githubReady=()=>existsSync(githubKeyPath);
   maintenance.prepareRelease=version=>githubMaintenance.releasePreview(version);
-  maintenance.requestRelease=(version,commit)=>githubMaintenance.release(version,commit);
+  maintenance.requestRelease=async(version,commit)=>{
+    const result=await githubMaintenance.release(version,commit);
+    store.set("localReleaseRequests",[{version,commit}]);publishBackground();return {...result,localBuildApprovalPending:true};
+  };
   maintenance.githubPulls=()=>store.get<PendingPull[]>("githubPendingPulls",[]);
   maintenance.publishGitHub=async(p)=>{
     if(maintenance.githubPulls!().some(pr=>pr.proposalId===p.id))throw Error("This proposal already has a pull request. Check repo.status.");
@@ -809,6 +819,21 @@ app.whenReady().then(async () => {
       window.webContents.send("jarvis:state", snapshot());
   });
   handle("snapshot", snapshot);
+  handle("configureReleaseBuildState",async()=>{
+    const selected=await dialog.showOpenDialog(window,{title:"Choose private JARVIS release build state",properties:["openDirectory","showHiddenFiles"]});if(selected.canceled)return;
+    const directory=validateBuildState(selected.filePaths[0]);
+    const choice=await dialog.showMessageBox(window,{type:"warning",buttons:["Cancel","Use private build state"],defaultId:0,cancelId:0,title:"Configure local release builds",message:"Use this private build state for owner-approved JARVIS releases?",detail:directory+"\n\nIncludes the existing local Mac signing identity, fixed vault, Android signing key, release signing key and SDK settings. Each build requires approval of the exact checked source commit. Builds run reviewed source with access to this private state. Project coding jobs cannot access it. Keys remain on this Mac; only signed app artifacts are published. No public-repository self-hosted runner is registered."});
+    if(choice.response!==1)return;
+    store.set("releaseBuildStateDirectory",directory);publishBackground();return {configured:true};
+  });
+  handle("openReleaseLog",()=>localReleases.state.log?shell.openPath(localReleases.state.log):undefined);
+  handle("buildRelease",async()=>{
+    const requests=store.get<{version:string;commit:string}[]>("localReleaseRequests",[]),request=requests[0];if(!request)throw Error("Ask JARVIS to request an exact release version first.");
+    if(localReleases.busy()||updateInstalling)throw Error("Finish the current release/update first.");
+    const choice=await dialog.showMessageBox(window,{type:"warning",buttons:["Cancel","Build and publish release"],defaultId:0,cancelId:0,title:"Review JARVIS release build",message:"Build and publish JARVIS "+request.version+"?",detail:"Source commit: "+request.commit+"\n\nRun the exact checked source with the configured private signing/build state. Build and verify signed DMG, ZIP and Android APK, then publish a complete signed GitHub release. This does not install the update. Build scripts execute with your Mac account privileges; approve only reviewed source."});
+    if(choice.response!==1)return {cancelled:true};
+    return localReleases.build(request.version,request.commit);
+  });
   handle("configureGitHubMaintenance", async()=>{
     const choice=await dialog.showOpenDialog(window,{title:"Import private JARVIS GitHub identities",properties:["openFile"],filters:[{name:"GitHub App identity JSON",extensions:["json"]}]});
     if(choice.canceled)return {cancelled:true};
@@ -849,7 +874,7 @@ app.whenReady().then(async () => {
   });
   handle("checkForUpdates", () => updater.check());
   handle("installUpdate", async () => {
-    const idle = () => !agent.active && !agent.busy && !localVoiceActive && !remote?.voiceOwner && !desktop.broker.pending.size;
+    const idle = () => !agent.active && !agent.busy && !localVoiceActive && !remote?.voiceOwner && !desktop.broker.pending.size && !localReleases?.busy();
     if(updateInstalling || !idle()) throw Error("Pause current work and end voice before installing an update.");
     if(!app.isPackaged || process.platform!=="darwin" || process.arch!=="arm64") throw Error("Automatic installation is available in the packaged Apple Silicon app.");
     const release=updater.state.release;
@@ -1174,6 +1199,7 @@ app.on("before-quit", () => {
   isQuitting = true;
   clearInterval(updateTimer);
   clearInterval(githubTimer);
+  localReleases?.stop();
   availability?.close();
   monitors?.close();
   jobs?.close();

@@ -9,6 +9,13 @@ export function MaintenanceSettings({state,run}:{state:Snapshot;run:(fn:()=>Prom
   <p className="muted">{state.maintenance?.githubConfigured?'GitHub maintenance identities configured':'Local mode · JARVIS GitHub identities not configured'}. Repository: sultandilaram/jarvis. Merging source does not update the installed app.</p>
   <button onClick={()=>run(()=>state.maintenance?.githubConfigured?window.jarvis.removeGitHubMaintenance():window.jarvis.configureGitHubMaintenance())}>{state.maintenance?.githubConfigured?'Disconnect GitHub maintenance':'Configure GitHub maintenance'}</button>
   {state.maintenance?.pulls?.map(p=><p key={p.number}>PR #{p.number} · {p.state.replaceAll('_',' ')}{p.error?' · '+p.error:''}</p>)}
+  <h3>Release builds on this Mac</h3>
+  <p>Signing keys stay on this Mac. Every release build needs approval of its exact checked source commit.</p>
+  <p role="status">{state.releases?.phase==='idle'||!state.releases?'No local release running.':`${state.releases.version||''} · ${state.releases.phase}`}</p>
+  {state.releases?.error&&<p role="alert">{state.releases.error}</p>}
+  <button onClick={()=>run(()=>window.jarvis.configureReleaseBuildState())}>{state.releases?.configured?'Change private build state':'Configure private build state'}</button>
+  {state.releases?.configured&&<button disabled={['preparing','building','verifying','publishing'].includes(state.releases.phase)} onClick={()=>run(()=>window.jarvis.buildRelease())}>Review requested release build</button>}
+  {state.releases?.phase==='failed'&&<button onClick={()=>run(()=>window.jarvis.openReleaseLog())}>Open private build log</button>}
   {!state.maintenance?.proposals.length&&<p>No source improvements proposed yet.</p>}
   {state.maintenance?.proposals.map(p=><div className="maintenance-proposal" key={p.id}>
    <h3>{p.goal}</h3><p>{({draft:'Coding',reviewing:'Independent review',owner_review:'Needs your source review',merged:'Merged locally',rejected:'Review rejected',conflict:'Source changed · new review needed'} as const)[p.state]}</p>

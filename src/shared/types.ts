@@ -74,6 +74,7 @@ export type RemoteState = {
   pending: { id: string; name: string; code: string; expires: number } | null;
 };
 export type Snapshot = {
+  releases?: Omit<import("../main/local-releases.ts").LocalReleaseState,"log"> & {configured:boolean};
   maintenance?: ReturnType<import("../main/maintenance.ts").Maintenance["summary"]>;
   updates?: import("../main/updater.ts").UpdateState;
   monitors?: import("../main/monitors.ts").Monitor[];
@@ -113,6 +114,9 @@ export type VoiceEvent = {
   createdAt: string;
 };
 export type Api = {
+  configureReleaseBuildState():Promise<unknown>;
+  buildRelease():Promise<unknown>;
+  openReleaseLog():Promise<unknown>;
   configureGitHubMaintenance(): Promise<unknown>;
   removeGitHubMaintenance(): Promise<unknown>;
   rendererReady?(): Promise<unknown>;

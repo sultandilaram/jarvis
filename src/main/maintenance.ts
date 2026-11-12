@@ -37,6 +37,8 @@ export function readTree(root:string):Tree {
 function writeTree(root:string,tree:Tree){for(const [p,data]of Object.entries(tree)){if(!safeSourcePath(p))throw Error('Unsafe source path.');mkdirSync(dirname(join(root,p)),{recursive:true,mode:0o700});writeFileSync(join(root,p),Buffer.from(data,'base64'),{mode:0o600});}}
 export class Maintenance {
  githubReady?:()=>boolean;
+ builderState?:()=>unknown;
+ buildRelease?:(version:string,commit:string,signal:AbortSignal)=>Promise<unknown>;
  requestRelease?:(version:string,commit:string)=>Promise<unknown>;
  prepareRelease?:(version:string)=>Promise<{version:string;commit:string}>;
  publishGitHub?:(p:Proposal)=>Promise<PendingPull>;
@@ -45,7 +47,7 @@ export class Maintenance {
  proposals():Proposal[]{return this.store.get<Proposal[]>('maintenanceProposals',[]);}
  save(p:Proposal){const all=this.proposals().filter(x=>x.id!==p.id);all.unshift(p);this.store.set('maintenanceProposals',all.slice(0,100));this.changed();}
  get(id:unknown){const p=this.proposals().find(p=>p.id===id);if(!p)throw Error('Maintenance proposal not found.');return p;}
- summary(){return {repository:'sultandilaram/jarvis',mode:this.githubReady?.()?'github' as const:'local' as const,githubConfigured:!!this.githubReady?.(),pulls:this.githubPulls?.()||[],proposals:this.proposals().map(({changes,receipts,...p})=>({...p,changes:changes?.map(c=>({path:c.path,sensitive:sensitivePath(c.path)})),checks:receipts||[]}))};}
+ summary(){return {repository:'sultandilaram/jarvis',releaseBuilder:this.builderState?.(),mode:this.githubReady?.()?'github' as const:'local' as const,githubConfigured:!!this.githubReady?.(),pulls:this.githubPulls?.()||[],proposals:this.proposals().map(({changes,receipts,...p})=>({...p,changes:changes?.map(c=>({path:c.path,sensitive:sensitivePath(c.path)})),checks:receipts||[]}))};}
  git(args:string[]){return execFileSync('/usr/bin/git',['-c','core.hooksPath=/dev/null','-c','commit.gpgSign=false','-c','user.name=JARVIS Local Maintainer','-c','user.email=jarvis@localhost',...args],{cwd:this.root,encoding:'utf8',maxBuffer:8*1024*1024,env:{PATH:'/usr/bin:/bin',HOME:this.root,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null',GIT_TERMINAL_PROMPT:'0'},stdio:['ignore','pipe','pipe']}).trim();}
  ensure(){
   if(existsSync(join(this.root,'.git')))return;
@@ -114,11 +116,17 @@ export class Maintenance {
    if(typeof args.text!=='string')throw Error('Provide the improvement goal in text.');const goal=args.text;
    return {title:'Prepare a JARVIS source improvement',approval:true,preview:{goal,repository:'sultandilaram/jarvis',effect:'Create an isolated coding job and a separate review job. Ordinary presentation/docs changes may merge locally after verified checks. Sensitive changes require owner review. Does not alter the installed app or publish to GitHub.'},run:async()=>this.start(goal)};
   }
+  if(action==='repo.build_release'){
+   if(!this.buildRelease)throw Error('Local release builds are unavailable.');
+   const version=typeof args.text==='string'?args.text.trim():'';if(!/^\d+\.\d+\.\d+$/.test(version))throw Error('Provide an exact stable release version in text.');
+   const request=this.store.get<{version:string;commit:string}[]>('localReleaseRequests',[]).find(r=>r.version===version);if(!request)throw Error('Request the release tag first using repo.release.');
+   return {title:'Build and publish JARVIS '+version,approval:true,preview:{version,commit:request.commit,repository:'sultandilaram/jarvis',effect:'Run this exact checked source with the private local signing/build state, verify signed DMG/ZIP/APK artifacts and publish a complete signed release. Build scripts run with the Mac account privileges. Keys remain on this Mac. This does not install the update.'},run:async(signal)=>this.buildRelease!(version,request.commit,signal)};
+  }
   if(action==='repo.release'){
    if(!this.requestRelease || !this.githubReady?.())throw Error('Configure dedicated GitHub maintenance identities first.');
    const version=typeof args.text==='string'?args.text.trim():'';if(!/^\d+\.\d+\.\d+$/.test(version))throw Error('Provide the release version in text.');
    if(!this.prepareRelease)throw Error('Release preview unavailable.');const checked=await this.prepareRelease(version);
-   return {title:'Request JARVIS release '+version,approval:true,preview:{commit:checked.commit,repository:'sultandilaram/jarvis',tag:'v'+version,effect:'Create a tag on the checked main source. The protected release workflow builds signed DMG/ZIP/APK artifacts only after its separate owner environment approval. No signing keys are sent to Codex.'},run:async()=>this.requestRelease!(version,checked.commit)};
+   return {title:'Request JARVIS release '+version,approval:true,preview:{commit:checked.commit,repository:'sultandilaram/jarvis',tag:'v'+version,effect:'Create a tag on the checked main source. A separate owner approval is required for the local signing build and publication. The optional protected release workflow remains disabled until configured. No signing keys are sent to Codex.'},run:async()=>this.requestRelease!(version,checked.commit)};
   }
   const p=this.get(args.proposalId);
   if(action==='repo.publish'){

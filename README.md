@@ -83,3 +83,9 @@ For the upstream maintainer, GitHub publication additionally requires two separa
 registered GitHub App identities (proposer/reviewer), installed only for jarvis and
 imported locally via Settings. The Codex connector is not their credential source.
 No maintainer credentials are needed for normal users consuming public updates.
+
+For the upstream maintainer, Settings can configure private build state for local
+owner-approved signing builds. repo.release requests a checked source tag;
+repo.build_release requests a separate build/publication approval. This is privileged
+reviewed-source execution. Signing state stays on the maintainer Mac; no public
+self-hosted runner is needed. Consuming an update remains a separate user decision.

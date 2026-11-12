@@ -141,3 +141,18 @@ workflow are included. They require private persistent signing/build state and a
 protected release environment. Public signing/notarization and a trusted release
 runner must be configured explicitly. The release signing private key is local
 private state and is never in source or app bundles.
+
+## Local release builder
+
+The default signing path is an on-demand build on the maintainer Mac. No public
+repository self-hosted runner is required or registered. Configure owner-only
+private build state in desktop Settings; ordinary source jobs cannot access it.
+After an approved repo.release creates an exact checked tag, repo.build_release
+or Settings requests a separate owner-approved privileged build of that commit.
+It clones only that public tag, verifies main-history membership and trusted CI,
+builds with the private signing state, verifies signed metadata/artifact hashes,
+then publishes the complete release. It never installs it. Build scripts run with
+the maintainer account privileges, so this path is for reviewed source only.
+Stop kills the owned command process group; uncertain publication is never replayed
+automatically. Logs remain private and are not returned to the model. The optional
+GitHub-hosted orchestration workflow remains disabled until separately configured.

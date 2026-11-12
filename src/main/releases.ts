@@ -1,7 +1,7 @@
 import { verify, createHash } from 'node:crypto';
 import { releaseRepository, releasePublicKey, releaseDataSchema } from '../shared/release-config.ts';
 export type ReleaseAsset = { name: string; sha256: string; size: number };
-export type ReleaseManifest = { schema: 1; repository: string; version: string; commit: string; publishedAt: string; notes: string; dataSchema: number; assets: { macArm64: ReleaseAsset; android: ReleaseAsset } };
+export type ReleaseManifest = { schema: 1; repository: string; version: string; commit: string; publishedAt: string; notes: string; dataSchema: number; assets: { macArm64: ReleaseAsset; android: ReleaseAsset; macDmg?: ReleaseAsset } };
 export function versionParts(value: string) {
   if(!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(value)) throw Error('Only stable x.y.z releases are supported.');
   const parts=value.split('.').map(Number);
@@ -19,9 +19,11 @@ export function verifyManifest(bytes: Buffer, signature: Buffer, current: string
   if(m.schema!==1 || m.repository!==releaseRepository || typeof m.version!=='string' || !newer(m.version,current) || (expectedVersion && m.version!==expectedVersion)) throw Error('Release identity/version is invalid or is not newer.');
   if(m.dataSchema!==releaseDataSchema) throw Error('This release changes the data format; a separately reviewed migration is required.');
   if(!/^[a-f0-9]{40}$/.test(m.commit) || typeof m.notes!=='string' || m.notes.length>8000 || typeof m.publishedAt!=='string' || !Number.isFinite(Date.parse(m.publishedAt))) throw Error('Release metadata is invalid.');
-  for(const [platform,ext,max] of [['macArm64','zip',1024*1024*1024],['android','apk',256*1024*1024]] as const) {
+  if(!m.assets || Object.keys(m.assets).some(k=>!['macArm64','android','macDmg'].includes(k)))throw Error('Unknown release artifact type.');
+  for(const [platform,ext,max] of [['macArm64','zip',1024*1024*1024],['android','apk',256*1024*1024],['macDmg','dmg',1024*1024*1024]] as const) {
+    if(platform==='macDmg'&&!m.assets.macDmg)continue;
     const a=m.assets?.[platform];
-    if(!a || !/^[a-f0-9]{64}$/.test(a.sha256) || !Number.isSafeInteger(a.size) || a.size<=0 || a.size>max || a.name!==`JARVIS-${platform==='macArm64'?'macOS-AppleSilicon':'Android'}-${m.version}.${ext}`) throw Error('Release artifact metadata is invalid.');
+    if(!a || !/^[a-f0-9]{64}$/.test(a.sha256) || !Number.isSafeInteger(a.size) || a.size<=0 || a.size>max || a.name!==`JARVIS-${platform==='android'?'Android':'macOS-AppleSilicon'}-${m.version}.${ext}`) throw Error('Release artifact metadata is invalid.');
   }
   return m;
 }

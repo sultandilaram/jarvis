@@ -321,6 +321,7 @@ export class RemoteLink extends EventEmitter {
         ...s,
         remote: undefined,
         memories: [],
+        maintenance:s.maintenance?{...s.maintenance,pulls:s.maintenance.pulls.slice(0,10),proposals:s.maintenance.proposals.slice(0,10).map(p=>({...p,goal:p.goal.slice(0,2000),review:p.review?.slice(0,4000),changes:p.changes?.slice(0,50)}))}:undefined,
         entries: s.entries
           .filter((e) => e.role !== "activity")
           .slice(-60)

@@ -2,6 +2,9 @@ import { contextBridge, ipcRenderer } from "electron";
 const invoke = (name: string, ...args: unknown[]) =>
   ipcRenderer.invoke(`jarvis:${name}`, ...args);
 contextBridge.exposeInMainWorld("jarvis", {
+  configureReleaseBuildState: () => invoke("configureReleaseBuildState"),
+  buildRelease: () => invoke("buildRelease"),
+  openReleaseLog: () => invoke("openReleaseLog"),
   configureGitHubMaintenance: () => invoke("configureGitHubMaintenance"),
   removeGitHubMaintenance: () => invoke("removeGitHubMaintenance"),
   rendererReady: () => invoke("rendererReady"),
