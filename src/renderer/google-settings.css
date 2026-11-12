@@ -1,0 +1,107 @@
+.google-settings {
+  --google-muted: #afc8d5;
+}
+.google-settings .google-summary {
+  color: var(--google-muted);
+  font-size: 0.85em;
+  font-weight: 400;
+}
+.google-settings p {
+  line-height: 1.6;
+}
+.google-settings .google-setup {
+  padding-block: 8px 20px;
+}
+.google-settings .google-setup h3 {
+  margin: 12px 0 6px;
+}
+.google-client-ready {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.google-connections {
+  margin-top: 24px;
+}
+.google-connection {
+  padding-block: 24px;
+  border-top: 1px solid var(--line);
+}
+.google-connection-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.google-settings .google-connection-title h3 {
+  margin: 0;
+}
+.google-connection-status {
+  margin-left: auto;
+  color: var(--google-muted);
+  font-size: 13px;
+}
+.google-settings .google-account {
+  overflow-wrap: anywhere;
+  margin-block: 12px 18px;
+}
+.google-account span {
+  display: block;
+  color: var(--google-muted);
+  font-size: 13px;
+  margin-top: 3px;
+}
+.google-settings .google-write-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-block: 18px;
+  font-weight: 500;
+}
+.google-settings .google-write-option input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  margin: 3px 0 0;
+  accent-color: var(--cyan);
+}
+.google-write-option small {
+  display: block;
+  margin-top: 5px;
+  color: var(--google-muted);
+  line-height: 1.6;
+  font-weight: 400;
+}
+.google-settings .settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.google-settings .settings-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  white-space: normal;
+}
+.google-settings .google-error {
+  color: #ffb7a8;
+  overflow-wrap: anywhere;
+}
+.google-advanced {
+  padding-block: 16px;
+}
+.google-advanced > summary {
+  cursor: pointer;
+}
+@media (max-width: 600px) {
+  .google-connection-status {
+    width: 100%;
+    margin-left: 31px;
+  }
+  .google-settings .settings-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

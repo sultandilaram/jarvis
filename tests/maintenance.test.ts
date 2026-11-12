@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { Store } from '../src/main/store.ts';
+import { desktopFunction } from '../src/main/desktop/broker.ts';
 import { Maintenance, readTree, treeDigest, sensitivePath, safeSourcePath } from '../src/main/maintenance.ts';
 import {execFileSync} from 'node:child_process';
 import {resolve} from 'node:path';
@@ -51,6 +52,7 @@ test('sensitive source merges require actual owner approval and reject source dr
  writeFileSync(join(f.m.root,'README.md'),'changed after review');assert.throws(()=>f.m.merge(p.id,true));assert.equal(f.m.get(p.id).state,'conflict');
  }finally{f.close();}});
 test('hosted-test handoff needs exact local receipts and GitHub; it never permits local merge',{skip:process.platform!=='darwin'},async()=>{const f=fixture();try{
+ assert(desktopFunction.inputSchema.properties.decision.enum.includes('accept_for_ci'),'The exposed review contract must permit the CI handoff exercised below.');
  const started=await f.m.start('Improve readme with hosted tests');let p=f.m.get(started.proposalId);
  f.setCurrent({id:p.jobId,workspace:join(f.root,p.jobId)});writeFileSync(join(f.root,p.jobId,'README.md'),'hosted review');await f.m.submit(p);p=f.m.get(p.id);
  const reviewer={id:p.reviewJobId,workspace:join(f.root,p.reviewJobId!)};f.setCurrent(reviewer);

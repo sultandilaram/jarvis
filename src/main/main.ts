@@ -1,3 +1,5 @@
+import { GoogleAccounts, type GoogleState } from "./integrations/google.ts";
+import { parseGoogleClient } from "./integrations/google-oauth.ts";
 import { LocalReleases, validateBuildState } from "./local-releases.ts";
 import { GitHubMaintenance, type GitHubMaintenanceCredentials, type PendingPull } from "./github-maintenance.ts";
 import { Maintenance, readTree, treeDigest, sensitivePath as importSensitivePath } from "./maintenance.ts";
@@ -65,6 +67,7 @@ let githubMaintenance: GitHubMaintenance;
 let githubTimer: ReturnType<typeof setInterval>;
 let githubTickBusy=false;
 let localReleases: LocalReleases;
+let google: GoogleAccounts;
 let updateTimer: ReturnType<typeof setInterval>;
 let updateInstalling = false;
 let agent: Orchestrator;
@@ -96,6 +99,7 @@ function sourcePreview(base64:string) {
 function snapshot() {
   return {
     ...agent.snapshot(),
+    google: google?.snapshot(),
     updates: updater?.state,
     maintenance: maintenance?.summary(),
     releases: localReleases?{...localReleases.state,log:undefined,configured:!!store.get("releaseBuildStateDirectory",null)}:undefined,
@@ -372,6 +376,7 @@ async function stopCurrent() {
   else await agent.stop();
 }
 async function stop() {
+  google?.cancel();
   localReleases?.stop();
   monitors?.pauseAll();
   watches?.pauseAll();
@@ -394,6 +399,14 @@ app.whenReady().then(async () => {
   updater = new ReleaseUpdater(app.getVersion(), join(data,"Updates"));
   updater.on("change", publishBackground);
   store = new Store(join(data, "jarvis.sqlite"));
+  const googlePath=join(data,"google-accounts.enc");
+  google=new GoogleAccounts({
+    load:async()=>existsSync(googlePath)?JSON.parse(await decryptSecret(readFileSync(googlePath))):{},
+    save:async value=>writeEncrypted(googlePath,await encryptSecret(JSON.stringify(value))),
+  },store.get<GoogleState>("googleAccounts",{configured:existsSync(googlePath)}),state=>{
+    store.set("googleAccounts",{...state,connecting:undefined,error:undefined});
+    if(agent&&wake)publishBackground();
+  },url=>shell.openExternal(url));
   if (!store.get("seeded", false)) {
     store.set("seeded", true);
   }
@@ -427,6 +440,8 @@ app.whenReady().then(async () => {
     () => window,
     join(data, "Workspace", "Workspace"),
   );
+  google.allowed=()=>jobs?.current()?.profile!=="project";
+  desktop.integrationPlanner=(action,args)=>google.plan(action,args);
   agent = new Orchestrator(
     store,
     new Codex(app.getVersion()),
@@ -819,6 +834,26 @@ app.whenReady().then(async () => {
       window.webContents.send("jarvis:state", snapshot());
   });
   handle("snapshot", snapshot);
+  handle("googleSetup",()=>shell.openExternal("https://console.cloud.google.com/auth/clients"));
+  handle("googleManageAccess",()=>shell.openExternal("https://myaccount.google.com/connections"));
+  handle("googleConfigure",async()=>{
+    const picked=await dialog.showOpenDialog(window,{title:"Import Google Desktop OAuth client",properties:["openFile"],filters:[{name:"Google OAuth client JSON",extensions:["json"]}]});
+    if(picked.canceled)return;
+    const {lstat}=await import("node:fs/promises"); const info=await lstat(picked.filePaths[0]);
+    if(!info.isFile()||info.isSymbolicLink()||info.size>16384)throw Error("Choose a regular OAuth JSON file up to 16 KiB.");
+    const client=parseGoogleClient(JSON.parse(readFileSync(picked.filePaths[0],"utf8")));
+    await google.configure(client);
+  });
+  handle("googleConnect",(service:unknown,write:unknown)=>{
+    if(!["gmail","calendar"].includes(String(service))||typeof write!=="boolean")throw Error("Choose Gmail or Calendar and an explicit permission mode.");
+    return google.connect(service as "gmail"|"calendar",write);
+  });
+  handle("googleCancel",()=>google.cancel());
+  handle("googleDisconnect",async(service:unknown)=>{
+    if(service!=="gmail"&&service!=="calendar")throw Error("Invalid Google service.");
+    const choice=await dialog.showMessageBox(window,{type:"question",buttons:["Keep connected","Disconnect"],defaultId:0,cancelId:0,title:"Disconnect Google account",message:`Disconnect ${service==="gmail"?"Gmail":"Calendar"} from this Mac?`,detail:"JARVIS removes this connection's locally stored tokens. Existing chat history remains. To revoke Google's grant too, use Manage Google access; revoking the shared client can affect both connections."});
+    if(choice.response===1)await google.disconnect(service);
+  });
   handle("configureReleaseBuildState",async()=>{
     const selected=await dialog.showOpenDialog(window,{title:"Choose private JARVIS release build state",properties:["openDirectory","showHiddenFiles"]});if(selected.canceled)return;
     const directory=validateBuildState(selected.filePaths[0]);
@@ -1199,6 +1234,7 @@ app.on("before-quit", () => {
   isQuitting = true;
   clearInterval(updateTimer);
   clearInterval(githubTimer);
+  google?.cancel();
   localReleases?.stop();
   availability?.close();
   monitors?.close();
