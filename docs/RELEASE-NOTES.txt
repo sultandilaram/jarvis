@@ -9,7 +9,9 @@ JARVIS 0.6.0 — local self-management preview
 - Failed launch checks stop the owned new app and restore the previous app.
 - Public source export, DMG packaging and locally signed release candidate tools.
 
-GitHub account connection, protected server rules and hosted publication remain pending.
+GitHub maintenance requires separate proposer/reviewer identities and enforced owner
+review and CI rules. Release publication requires a separate exact-commit owner
+approval; configuration alone does not publish a release.
 The current Mac build uses a local certificate, not Apple notarization. Android updates use
 normal Android installation approval. Five moderate development-packaging advisories
 remain under review; this is an experimental test release.
