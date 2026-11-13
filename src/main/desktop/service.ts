@@ -212,7 +212,12 @@ export class DesktopService {
         )
       )
         throw Error("Sensitive fields require direct user interaction.");
-      if (action === "desktop.press" && !e.actions.includes("AXPress"))
+      const f = e.frame;
+      const pointer = Object.hasOwn(externalBrowsers, snapshot.bundleId) &&
+        e.pressMethod === "pointer" && typeof snapshot.windowIdentifier === "string" && snapshot.windowIdentifier.length > 0 && ["AXButton", "AXLink"].includes(e.role) &&
+        f && [f.x, f.y, f.width, f.height].every((v: unknown) => typeof v === "number" && Number.isFinite(v)) &&
+        Math.abs(f.x) <= 100000 && Math.abs(f.y) <= 100000 && f.width > 0 && f.height > 0 && f.width <= 10000 && f.height <= 10000;
+      if (action === "desktop.press" && (e.pressMethod === "none" || (!e.actions.includes("AXPress") && !pointer)))
         throw Error("This element does not support press.");
       if (
         action === "desktop.type" &&
@@ -252,9 +257,16 @@ export class DesktopService {
           const result = await nativeCall(
             this.helper,
             {
-              ...e,
-              ...args,
               action,
+              elementId: e.id,
+              role: e.role,
+              subrole: e.subrole,
+              label: e.label,
+              value: e.value,
+              text: args.text,
+              frame: e.frame,
+              contextSnapshot: snapshot,
+              pressMethod: e.pressMethod ?? (e.actions.includes("AXPress") ? "accessibility" : "none"),
               bundleId: snapshot.bundleId,
               window: snapshot.window,
               documentURL: snapshot.documentURL,
