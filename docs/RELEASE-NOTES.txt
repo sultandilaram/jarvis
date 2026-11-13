@@ -1,3 +1,18 @@
+JARVIS 0.7.1 — open pages in the requested browser
+
+- Approval-gated external opening in Arc, Safari, Chrome, Brave, Edge or Firefox.
+- Open an exact HTTP(S) URL or a granted local HTML file, without UI shortcuts.
+- Local HTML previews include a content hash; changed files invalidate approval.
+- Reject executable schemes, credential-bearing URLs and non-browser applications.
+- Report macOS launch acceptance separately from verified page loading.
+- External opening does not add DOM control or bypass folder grants.
+
+The Android 0.7.0 Play Protect warning remains unresolved; no clearance is claimed
+for this release. Its Google classification appeal was submitted separately.
+Existing signing, private credentials, approvals and sandbox boundaries remain.
+
+--- Previous release ---
+
 JARVIS 0.7.0 — Google account connections
 
 - Separate Gmail and Google Calendar connections in desktop Settings.
