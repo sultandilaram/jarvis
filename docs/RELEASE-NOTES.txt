@@ -1,3 +1,24 @@
+JARVIS 0.7.3 — verify delayed input and click accessible browser controls
+
+- Send text once, then wait briefly for native value readback; verify page input effects separately.
+- Support a single pointer click on an observed, enabled browser button/link when AXPress is unavailable.
+- Bind the pointer approval to exact page/window/process/target and observed native bounds.
+- Recheck the complete page snapshot after focusing the approved window.
+- Recheck focused window, unchanged control, on-screen bounds and exact system hit test before dispatch.
+- Allow only the exact hit target or non-interactive presentation descendants; reject nested controls.
+- Refuse covered, moved, disabled or sensitive targets; refuse active mouse buttons/modifier keys.
+- Keep raw coordinates out of tool arguments and prevent caller overrides of observed native metadata.
+- Launch a stopped browser separately from opening its requested page; observe actual results.
+
+Every mutation still requires exact one-time approval. No automatic fallback after an
+uncertain accessibility press and no replay of unverified typing/submission.
+Real installed Arc click/submission acceptance remains pending. Custom controls,
+CAPTCHA, credentials and payments may require direct interaction. This is bounded
+accessibility and pointer control, not unrestricted DOM access.
+Android Play Protect remains unresolved; no public/APK release clearance is claimed.
+
+--- Previous release ---
+
 JARVIS 0.7.2 — inspect and interact with accessible Arc pages
 
 - Request Chromium accessibility content before inspecting external browser pages.
