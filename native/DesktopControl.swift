@@ -17,6 +17,21 @@ func run(_ a:[String:Any])throws->[String:Any]{
   let until=Date().addingTimeInterval(15);while result == nil && failure == nil && Date()<until {RunLoop.current.run(until:Date().addingTimeInterval(0.05))}
   if let e=failure{throw e};guard let r=result else{throw NSError(domain:"App launch outcome uncertain",code:1)};return r
  }
+ if action == "browser.open_external" {
+  let browsers:Set<String> = ["company.thebrowser.Browser","com.apple.Safari","com.google.Chrome","com.brave.Browser","com.microsoft.edgemac","org.mozilla.firefox"]
+  guard let bundle=a["bundleId"] as? String,browsers.contains(bundle),let appURL=NSWorkspace.shared.urlForApplication(withBundleIdentifier:bundle),let raw=a["url"] as? String,raw.count<=8192,let target=URL(string:raw),target.user==nil,target.password==nil else{throw NSError(domain:"Choose an installed supported browser and an explicit URL",code:1)}
+  if target.isFileURL {
+   guard target.host==nil || target.host=="" || target.host=="localhost",["html","htm"].contains(target.pathExtension.lowercased()) else{throw NSError(domain:"Only local HTML files can open in an external browser",code:1)}
+  }else{guard ["http","https"].contains(target.scheme ?? ""),target.host != nil else{throw NSError(domain:"Only HTTP(S) URLs or approved local HTML files are supported",code:1)}}
+  let config=NSWorkspace.OpenConfiguration();config.activates=true
+  var result:[String:Any]?;var failure:Error?;let lock=NSLock();let finished=DispatchSemaphore(value:0)
+  NSWorkspace.shared.open([target],withApplicationAt:appURL,configuration:config){app,error in
+   lock.lock();failure=error;if let app=app{result=["bundleId":bundle,"pid":app.processIdentifier,"url":target.absoluteString,"launchAccepted":true,"verified":false,"note":"macOS accepted the browser open request. Observe the browser to verify the page; this does not provide DOM control."]};lock.unlock();finished.signal()
+  }
+  guard finished.wait(timeout:.now()+15) == .success else{throw NSError(domain:"Browser open outcome uncertain; inspect before retrying",code:1)}
+  lock.lock();let error=failure;let opened=result;lock.unlock()
+  if let e=error{throw e};guard let r=opened else{throw NSError(domain:"Browser open outcome uncertain; inspect before retrying",code:1)};return r
+ }
  guard AXIsProcessTrusted() else{throw NSError(domain:"Accessibility permission is required for JARVIS. Open System Settings > Privacy & Security > Accessibility and enable JARVIS, then try again.",code:1)}
  let app: NSRunningApplication?
  if let bundle=a["bundleId"] as? String{app=NSRunningApplication.runningApplications(withBundleIdentifier:bundle).first}else{app=NSWorkspace.shared.frontmostApplication}

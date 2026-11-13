@@ -5,6 +5,7 @@ import { dialog, shell, BrowserWindow } from "electron";
 import { DesktopBroker, type ActionPlan } from "./broker.ts";
 import { FileAccess } from "./files.ts";
 import { ControlledBrowser } from "./browser.ts";
+import { planExternalBrowser } from "./external-browser.ts";
 export function nativeCall(
   helper: string,
   args: Record<string, unknown>,
@@ -96,6 +97,10 @@ export class DesktopService {
       if (!this.phonePlanner) throw Error("Phone control is not ready.");
       return this.phonePlanner(action, args, signal);
     }
+    if (action === "browser.open_external")
+      return planExternalBrowser(args, this.files, (target, s) =>
+        nativeCall(this.helper, { action, ...target }, s),
+      );
     if (action.startsWith("browser.")) return this.browser.plan(action, args);
     if (action === "files.roots")
       return {
