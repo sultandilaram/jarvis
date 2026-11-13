@@ -5,7 +5,7 @@ import { dialog, shell, BrowserWindow } from "electron";
 import { DesktopBroker, type ActionPlan } from "./broker.ts";
 import { FileAccess } from "./files.ts";
 import { ControlledBrowser } from "./browser.ts";
-import { planExternalBrowser } from "./external-browser.ts";
+import { externalBrowsers, planExternalBrowser } from "./external-browser.ts";
 export function nativeCall(
   helper: string,
   args: Record<string, unknown>,
@@ -195,6 +195,15 @@ export class DesktopService {
         throw Error(
           "Automation of command consoles, security settings and credential apps is disabled.",
         );
+      if (Object.hasOwn(externalBrowsers, snapshot.bundleId)) {
+        if (snapshot.truncated || snapshot.pageContentAvailable !== true)
+          throw Error("The browser page snapshot is incomplete. Inspect the loaded page again or use direct interaction.");
+        if (!snapshot.documentURL)
+          throw Error("The browser page URL is unavailable or restricted. Observe the loaded page again; do not act on unidentified or internal browser controls.");
+        const page = new URL(snapshot.documentURL);
+        if (!["http:", "https:", "file:"].includes(page.protocol) || page.username || page.password)
+          throw Error("Internal browser pages and credential-bearing URLs require direct user interaction.");
+      }
       const e = snapshot.elements.find((e: any) => e.id === args.elementId);
       if (!e || e.secure) throw Error("Unknown or secure element.");
       if (
@@ -233,6 +242,7 @@ export class DesktopService {
         preview: {
           application: snapshot.bundleId,
           window: snapshot.window,
+          ...(snapshot.documentURL ? { page: snapshot.documentURL } : {}),
           element: e,
           context: action === "desktop.press" ? snapshot.elements : undefined,
           ...(action === "desktop.type" ? { text: args.text } : {}),
@@ -247,6 +257,8 @@ export class DesktopService {
               action,
               bundleId: snapshot.bundleId,
               window: snapshot.window,
+              documentURL: snapshot.documentURL,
+              windowIdentifier: snapshot.windowIdentifier,
               pid: snapshot.pid,
             },
             s,

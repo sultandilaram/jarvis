@@ -1,3 +1,22 @@
+JARVIS 0.7.2 — inspect and interact with accessible Arc pages
+
+- Request Chromium accessibility content before inspecting external browser pages.
+- Wait briefly for page exposure and bound deeper browser snapshots.
+- Mark shortened non-sensitive values as incomplete, including changes beyond the value limit.
+- Refuse browser mutations when page content is unavailable or the snapshot is truncated.
+- Include the page URL and window identity in approvals and recheck them natively before mutation.
+- Redact and block recognized password, payment, verification and secret input fields.
+- Preserve one-time approval for every click and text replacement, including form submissions.
+- Test the real native controller's field policy and compilation on macOS.
+
+This is accessibility-based interaction, not unrestricted browser DOM access.
+Custom controls, inaccessible frames, CAPTCHA, credentials and payments may need
+direct user interaction. Do not infer a successful submission from a click alone.
+Real Arc field, input-event, preview and submission acceptance checks remain required.
+The Android Play Protect appeal is unresolved; no public/APK release clearance is claimed.
+
+--- Previous release ---
+
 JARVIS 0.7.1 — open pages in the requested browser
 
 - Approval-gated external opening in Arc, Safari, Chrome, Brave, Edge or Firefox.
