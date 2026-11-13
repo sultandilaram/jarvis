@@ -533,3 +533,9 @@ test("HTML-only messages accurately describe omitted content rather than claimin
   assert(!result.bodyNotice.includes("not retrieved"));
   assert(!JSON.stringify(result).includes("<p>"));
 });
+
+test("disabling a built-in plugin blocks retained accounts and cancels prepared writes",async()=>{
+ let calls=0,enabled=true;const f=fixture(async()=>{calls++;return Response.json({id:"unexpected"})});f.a.enabled=service=>service!=="gmail"||enabled;
+ const broker=new DesktopBroker((a,args)=>f.a.plan(a,args));const pending=broker.execute("email.send",{to:["recipient@example.com"],subject:"Fixture",text:"Inert body"});await tick();enabled=false;broker.decide([...broker.pending.keys()][0],true);assert.equal((await pending).success,false);assert.equal(calls,0);assert(f.saved().gmail);
+ await assert.rejects(f.a.plan("email.search",{query:"fixture"}),/built-in plugin/);assert.equal(f.a.snapshot().plugins?.gmail,false);assert.equal(f.a.snapshot().plugins?.calendar,true);
+});

@@ -4,7 +4,7 @@ export function MaintenanceSettings({state,run}:{state:Snapshot;run:(fn:()=>Prom
  const [review,setReview]=useState<any>();
  const [loading,setLoading]=useState(false);
  const inspect=(id:string)=>run(async()=>{setLoading(true);try{setReview(await window.jarvis.maintenanceReview(id));}finally{setLoading(false);}});
- return <details className="settings-section"><summary>JARVIS source and maintenance</summary>
+ return <details className="settings-section" open><summary>JARVIS source and maintenance</summary>
   <p>Ask “Improve JARVIS…” to prepare an isolated source change. Checks and a separate reviewer come before a merge. Sensitive changes need your approval.</p>
   <p className="muted">{state.maintenance?.githubConfigured?'GitHub maintenance identities configured':'Local mode · JARVIS GitHub identities not configured'}. Repository: sultandilaram/jarvis. Merging source does not update the installed app.</p>
   <button onClick={()=>run(()=>state.maintenance?.githubConfigured?window.jarvis.removeGitHubMaintenance():window.jarvis.configureGitHubMaintenance())}>{state.maintenance?.githubConfigured?'Disconnect GitHub maintenance':'Configure GitHub maintenance'}</button>

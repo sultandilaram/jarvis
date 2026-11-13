@@ -89,3 +89,11 @@ owner-approved signing builds. repo.release requests a checked source tag;
 repo.build_release requests a separate build/publication approval. This is privileged
 reviewed-source execution. Signing state stays on the maintainer Mac; no public
 self-hosted runner is needed. Consuming an update remains a separate user decision.
+
+## Intelligence, autonomy and extensions
+
+The 0.8 development candidate adds configurable task providers, scoped skills,
+custom MCP HTTP plugins, built-in Gmail/Calendar plugins, a multi-tab embedded
+Browser workspace and searchable settings. See
+[Assistant setup](docs/ASSISTANT-SETUP.md) for supported protocols, approval rules,
+privacy, desktop-control limits and the remaining acceptance/release gates.

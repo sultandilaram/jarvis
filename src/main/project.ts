@@ -251,6 +251,7 @@ export class ProjectService {
       return {
         title: "Import project source snapshot",
         approval: true,
+        routine: "sandbox",
         preview: {
           source,
           destination,
@@ -362,6 +363,7 @@ export class ProjectService {
         ? "Run project command with public HTTPS"
         : "Run project command",
       approval: true,
+      routine: network ? undefined : "sandbox",
       preview: {
         jobId: job.id,
         command,

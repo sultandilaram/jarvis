@@ -1,6 +1,6 @@
 # Gmail and Google Calendar connections
 
-JARVIS 0.7.0 adds **Settings → Email and calendar** on the Mac. Google account commissioning is required before real use; the 0.6.2 apps do not include this feature.
+JARVIS 0.7.0 adds **Settings → Plugins** on the Mac. Google account commissioning is required before real use; the 0.6.2 apps do not include this feature.
 
 After updating an existing installation, start a new conversation once before using the new account tools. Existing chat history remains available; this loads the current tool definitions for the new conversation.
 

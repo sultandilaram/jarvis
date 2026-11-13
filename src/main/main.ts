@@ -48,10 +48,15 @@ import { MonitorManager } from "./monitors.ts";
 import { ProjectService } from "./project.ts";
 import { WatchManager } from "./watch.ts";
 import { Store } from "./store.ts";
+import { ProviderManager, ProviderRouter } from "./providers/manager.ts";
+import { DelegationManager, subagentTool } from "./delegation.ts";
+import { ProviderEngine } from "./providers/engine.ts";
 import { Codex } from "./codex.ts";
+import { ExtensionManager } from "./extensions/manager.ts";
+import { PluginCatalog, isBuiltinPlugin } from "./extensions/catalog.ts";
 import { voiceInstructions, liveVoices } from "../shared/persona.ts";
 import { RemoteLink } from "./remote/link.ts";
-import { DesktopService } from "./desktop/service.ts";
+import { DesktopService, nativeCall } from "./desktop/service.ts";
 import { Orchestrator } from "./orchestrator.ts";
 import { readSelectedFile } from "./local-file.ts";
 import type { Settings, VoiceEvent } from "../shared/types.ts";
@@ -68,10 +73,15 @@ let githubTimer: ReturnType<typeof setInterval>;
 let githubTickBusy=false;
 let localReleases: LocalReleases;
 let google: GoogleAccounts;
+let providers: ProviderManager;
+let extensions: ExtensionManager;
+let pluginCatalog:PluginCatalog;
+let delegations:DelegationManager;
 let updateTimer: ReturnType<typeof setInterval>;
 let updateInstalling = false;
 let agent: Orchestrator;
 let desktop: DesktopService;
+let desktopAccess: {accessibility:boolean;eventPosting:boolean;screenCapture:boolean}|undefined;
 let store: Store;
 let keyPath: string;
 let wake: WakeController;
@@ -100,6 +110,10 @@ function snapshot() {
   return {
     ...agent.snapshot(),
     google: google?.snapshot(),
+    providers: providers?.snapshot(),
+    extensions: extensions?.snapshot(),
+    pluginCatalog:pluginCatalog?.entries(),
+    browser:desktop?.browser.state(),
     updates: updater?.state,
     maintenance: maintenance?.summary(),
     releases: localReleases?{...localReleases.state,log:undefined,configured:!!store.get("releaseBuildStateDirectory",null)}:undefined,
@@ -108,6 +122,8 @@ function snapshot() {
     desktop: {
       roots: desktop?.roots() || [],
       accessibility: systemPreferences.isTrustedAccessibilityClient(false),
+      eventPosting: desktopAccess?.eventPosting,
+      screenCapture: desktopAccess?.screenCapture,
       capabilities: [
         "App launch",
         "Accessibility inspect / press / text",
@@ -376,6 +392,7 @@ async function stopCurrent() {
   else await agent.stop();
 }
 async function stop() {
+  providers?.cancelTest();
   google?.cancel();
   localReleases?.stop();
   monitors?.pauseAll();
@@ -399,6 +416,18 @@ app.whenReady().then(async () => {
   updater = new ReleaseUpdater(app.getVersion(), join(data,"Updates"));
   updater.on("change", publishBackground);
   store = new Store(join(data, "jarvis.sqlite"));
+  const providerPath=join(data,"task-providers.enc");
+  providers=new ProviderManager({
+    load:async()=>existsSync(providerPath)?JSON.parse(await decryptSecret(readFileSync(providerPath))):null,
+    save:async value=>writeEncrypted(providerPath,await encryptSecret(JSON.stringify(value))),
+  });
+  await providers.load();
+  const pluginPath=join(data,"plugins.enc");
+  extensions=new ExtensionManager(store,{
+    load:async()=>existsSync(pluginPath)?JSON.parse(await decryptSecret(readFileSync(pluginPath))):[],
+    save:async value=>writeEncrypted(pluginPath,await encryptSecret(JSON.stringify(value))),
+  });
+  await extensions.load();
   const googlePath=join(data,"google-accounts.enc");
   google=new GoogleAccounts({
     load:async()=>existsSync(googlePath)?JSON.parse(await decryptSecret(readFileSync(googlePath))):{},
@@ -407,6 +436,8 @@ app.whenReady().then(async () => {
     store.set("googleAccounts",{...state,connecting:undefined,error:undefined});
     if(agent&&wake)publishBackground();
   },url=>shell.openExternal(url));
+  pluginCatalog=new PluginCatalog(store,()=>google.state,publishBackground);
+  google.enabled=service=>pluginCatalog.enabled(service);
   if (!store.get("seeded", false)) {
     store.set("seeded", true);
   }
@@ -438,17 +469,32 @@ app.whenReady().then(async () => {
       agent.publish();
     },
     () => window,
-    join(data, "Workspace", "Workspace"),
+    fileWorkspace,
   );
   google.allowed=()=>jobs?.current()?.profile!=="project";
+  desktop.broker.approvalMode = () => store.settings().approvalMode === "critical" ? "critical" : "always";
+  desktop.visionAllowed=()=>providers.config.selected==="codex"||providers.profile()?.visionVerified===true;
   desktop.integrationPlanner=(action,args)=>google.plan(action,args);
+  desktop.extensionPlanner=(action,args)=>{
+    if(jobs?.current()?.profile === "project")throw Error("Plugins are unavailable to isolated project jobs.");
+    if(action==="plugin.list")return Promise.resolve({title:"List JARVIS plugins",approval:false,preview:{},run:async()=>({plugins:[...pluginCatalog.entries(),...extensions.snapshot().plugins.map(p=>({...p,kind:"external",required:false}))]})});
+    if(action==="plugin.tools"&&isBuiltinPlugin(args.pluginId)){const p=pluginCatalog.entries().find(p=>p.id===args.pluginId)!;return Promise.resolve({title:"Inspect built-in plugin",approval:false,preview:{plugin:p.name},run:async()=>({...p,notice:"Use these native actions directly through jarvis.desktop; their account, tab, isolation and approval guards remain in force."})});}
+    if(jobs?.current()?.profile === "project")throw Error("Custom plugins are unavailable to isolated project jobs.");return extensions.plan(action,args);
+  };
   agent = new Orchestrator(
     store,
-    new Codex(app.getVersion()),
+    new ProviderRouter(app.getVersion(),providers,store),
     workspace,
     () => !!apiKey() || existsSync(keyPath),
     desktop.broker,
   );
+  desktop.navigationTargets = () => agent.active ? agent.navigationTargets : [];
+  desktop.browser.taskKey=()=>agent.active?.id||"idle";
+  desktop.browser.accessAllowed=()=>jobs?.current()?.profile!=="project";
+  desktop.browser.owner=()=>window;
+  desktop.browser.canEmbed=()=>!!window&&!window.isDestroyed()&&agent.approvals.size===0&&!updateInstalling;
+  desktop.browser.on("change",publishBackground);
+  desktop.browser.on("reveal",()=>{showWindow();window.webContents.send("jarvis:browser-reveal");});
   jobs = new JobManager(store, agent, join(data, "Jobs"), () => {
     if (window && !window.isDestroyed()) publishBackground();
   });
@@ -459,7 +505,31 @@ app.whenReady().then(async () => {
   agent.jobSnapshot = () => jobs.list();
   agent.beforeTool = () => jobs.countTool();
   const projects = new ProjectService(() => jobs.current(), desktop.files);
+  delegations=new DelegationManager(store,join(data,"Subagents"),()=>{
+    const j=jobs.current();
+    return j&&agent.active&&!agent.stopping&&j.taskId===agent.active.id?{jobId:j.id,taskId:agent.active.id,project:j.profile==="project"}:null;
+  },()=>store.settings().subagentsEnabled===true,history=>{
+    const p=providers.profile();
+    if(p&&!p.toolsVerified)throw Error("The selected provider must pass its tool test before delegation.");
+    const engine=p?new ProviderEngine({...p},history,fetch,[{name:"jarvis_desktop",description:subagentTool.description,parameters:subagentTool.inputSchema}]):new Codex(app.getVersion());
+    return {engine,model:p?.model||agent.model};
+  },async(parent,path)=>{
+    const j=jobs.current();
+    if(!j||j.id!==parent.jobId||j.taskId!==parent.taskId||j.profile!=="project")throw Error("The shared project task changed.");
+    const f=await projects.artifact(j,"read",path);
+    if(jobs.current()?.id!==j.id||agent.active?.id!==parent.taskId)throw Error("The parent task changed during snapshot capture.");
+    return {path,text:f.text,sha256:f.sha256};
+  },parent=>{
+    const j=jobs.current();if(!j||j.id!==parent.jobId||j.taskId!==parent.taskId||agent.active?.id!==parent.taskId||agent.stopping)throw Error("The parent budget is no longer active.");
+    jobs.countTool();
+  },publishBackground);
+  jobs.onCreated=job=>delegations.registerNewParent(job.id);
+  desktop.agentPlanner=(action,args)=>delegations.plan(action,args);
+  agent.subagentSnapshot=()=>delegations.summary();
+  agent.on("state",s=>delegations.reconcile(s.activeTaskId));
+  agent.on("correction",()=>delegations.cancelAll("The operator corrected the parent task. Delegate fresh work explicitly."));
   maintenance=new Maintenance(store,jobs,join(data,"Source",app.getVersion()),join(__dirname,"maintenance-source.json"),publishBackground);
+  agent.projectAuthority=job=>maintenance.projectAuthority(job);
   const githubKeyPath=join(data,"github-maintenance.enc");
   githubMaintenance=new GitHubMaintenance(async()=>{
     if(!existsSync(githubKeyPath))throw Error("JARVIS GitHub maintenance identities are not configured.");
@@ -798,6 +868,8 @@ app.whenReady().then(async () => {
     screenLocked = false;
     wake.setSystemPaused(suspended);
   });
+  window.on("resize",()=>desktop.browser.waitForLayout());
+  window.webContents.on("render-process-gone",()=>desktop.browser.surface(false));
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event, url) => {
     if (url !== window.webContents.getURL()) event.preventDefault();
@@ -834,6 +906,61 @@ app.whenReady().then(async () => {
       window.webContents.send("jarvis:state", snapshot());
   });
   handle("snapshot", snapshot);
+  handle("desktopScreenPermissions",()=>shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"));
+  handle("desktopCheckAccess",async()=>{
+    const result=await nativeCall(desktop.helper,{action:"permissions"},new AbortController().signal);
+    desktopAccess={accessibility:result.accessibility===true,eventPosting:result.eventPosting===true,screenCapture:result.screenCapture===true};
+    publishBackground();return desktopAccess;
+  });
+  extensions.on("change",publishBackground);
+  agent.skillContext=()=>extensions.instructions(agent.executionJob?.profile||"desktop");
+  const extensionIdle=()=>{if(agent.active||agent.busy||agent.stopping||jobs?.current())throw Error("Finish or pause the current task before changing skills or plugins.");};
+  handle("skillSave",(value:unknown)=>{extensionIdle();return extensions.saveSkill(value);});
+  handle("skillRemove",(id:unknown)=>{extensionIdle();extensions.removeSkill(id);});
+  handle("skillImport",async()=>{
+    extensionIdle();const chosen=await dialog.showOpenDialog(window,{title:"Import skill instructions",properties:["openFile"],filters:[{name:"Skill text",extensions:["md","txt"]}]});
+    if(chosen.canceled)return null;extensionIdle();const file=await readSelectedFile(chosen.filePaths[0]);if(file.bytes>20000)throw Error("Choose a skill text file up to 20 KB. Scripts and assets are not installed.");return {name:chosen.filePaths[0].split("/").at(-1)!.replace(/\.(md|txt)$/i,"").slice(0,80),text:file.text,scope:"all",enabled:false};
+  });
+  handle("pluginSave",async(value:unknown)=>changeConfiguration(async()=>{desktop.broker.cancel();return extensions.savePlugin(value);}));
+  handle("pluginEnable",async(id:unknown,enabled:unknown)=>{
+    if(isBuiltinPlugin(id)){desktop.broker.cancel();if(enabled===false&&google.state.connecting===id)google.cancel();pluginCatalog.set(id,enabled);return {enabled:pluginCatalog.enabled(id)};}
+    if(enabled===true){extensionIdle();const p=extensions.snapshot().plugins.find(p=>p.id===id);if(!p)throw Error("Unknown plugin.");const revision=extensions.revision;const choice=await dialog.showMessageBox(window,{type:"warning",buttons:["Cancel","Connect plugin"],defaultId:0,cancelId:0,title:"Connect custom MCP plugin",message:"Connect "+p.name+"?",detail:"Server: "+p.endpoint+"\n\nJARVIS will load this server’s tool catalog. Calls require approval of exact arguments, even in Autopilot. The server may access accounts or files configured on that server. Use only a server you trust. No subprocesses or downloaded scripts are started. You can disable it at any time."});if(choice.response!==1)return {cancelled:true};extensionIdle();if(extensions.revision!==revision)throw Error("Plugin configuration changed during review. Inspect it again.");return changeConfiguration(async()=>{desktop.broker.cancel();await extensions.enable(id,true);return {enabled:true};});}
+    desktop.broker.cancel();await extensions.enable(id,enabled);return {enabled};
+  });
+  handle("pluginRemove",async(id:unknown)=>{if(isBuiltinPlugin(id))throw Error("Embedded and built-in plugins cannot be removed. Optional built-ins can be disabled.");desktop.broker.cancel();await extensions.removePlugin(id);});
+  providers.on("change",publishBackground);
+  let configurationChanging=false;
+  const configurationIdle=(provider=false)=>{
+    if(configurationChanging||agent.active||agent.busy||agent.stopping||jobs?.current()||localReleases?.busy()||(provider&&(localVoiceActive||remote?.voiceOwner)))throw Error("Finish or pause current work and end voice before changing this configuration.");
+  };
+  const changeConfiguration=async(work:()=>Promise<unknown>,provider=false,newContext=false)=>{
+    configurationIdle(provider);
+    const pending=newContext?agent.newConversation():Promise.resolve();
+    configurationChanging=true;agent.busy=true;agent.publish();
+    try{await pending;return await work();}finally{configurationChanging=false;agent.busy=false;agent.publish();}
+  };
+  handle("providerSave",async(value:unknown)=>{
+    configurationIdle(true);const prepared=providers.prepare(value),active=prepared.kind===providers.config.selected,revision=providers.revision;
+    if(active){const choice=await dialog.showMessageBox(window,{type:"question",buttons:["Cancel","Save and reconnect"],defaultId:0,cancelId:0,title:"Change the active task connection",message:"Apply changes to "+prepared.kind+"?",detail:"Destination: "+prepared.endpoint+"\nModel: "+prepared.model+"\n\nNew task instructions, enabled skills and requested file/account/tool content and captured window images will go to this server. A fresh conversation starts. Tools must pass their probe again; voice is configured separately."});if(choice.response!==1)return {cancelled:true};}
+    if(providers.revision!==revision)throw Error("Provider configuration changed during review. Inspect it again.");
+    return changeConfiguration(async()=>{await providers.save(prepared);if(active){desktop.stop();agent.model="";await agent.connect();}return {saved:true};},true,active);
+  });
+  handle("providerCancelTest",()=>providers.cancelTest());
+  const providerProbe=async(kind:unknown,vision=false)=>{
+    const active=kind===providers.config.selected;
+    return changeConfiguration(async()=>{try{return await (vision?providers.testVision(kind):providers.test(kind));}finally{if(active){desktop.stop();agent.model="";await agent.connect();}}},true,active);
+  };
+  handle("providerTest",(kind:unknown)=>providerProbe(kind));
+  handle("providerTestVision",(kind:unknown)=>providerProbe(kind,true));
+  handle("providerRemove",async(kind:unknown)=>changeConfiguration(()=>providers.remove(kind),true));
+  handle("providerSelect",async(kind:unknown)=>{
+    configurationIdle(true);
+    if(typeof kind!=="string")throw Error("Choose a task provider.");
+    const p=providers.snapshot().profiles.find(p=>p.kind===kind),revision=providers.revision;if(!p)throw Error("Unknown provider.");
+    const choice=await dialog.showMessageBox(window,{type:"question",buttons:["Cancel","Use this provider"],defaultId:0,cancelId:0,title:"Change JARVIS task provider",message:"Use "+kind+" for new tasks?",detail:kind==="codex"?"Use your existing Codex sign-in. A new conversation will begin; prior history is retained.":"Destination: "+p.endpoint+"\nModel: "+p.model+"\n\nNew task instructions, enabled skills and requested file/account/tool content and captured window images will be sent to this server. "+(p.toolsVerified?"Structured tools passed the compatibility probe; JARVIS approvals still apply.":"This model is conversation-only until its tool probe passes.")+" A new conversation will begin. Voice is configured separately."});
+    if(choice.response!==1)return {cancelled:true};if(providers.revision!==revision)throw Error("Provider configuration changed during review. Inspect it again.");
+    return changeConfiguration(async()=>{await providers.select(kind);desktop.stop();agent.model="";await agent.connect();return {selected:kind};},true,true);
+  });
   handle("googleSetup",()=>shell.openExternal("https://console.cloud.google.com/auth/clients"));
   handle("googleManageAccess",()=>shell.openExternal("https://myaccount.google.com/connections"));
   handle("googleConfigure",async()=>{
@@ -844,15 +971,16 @@ app.whenReady().then(async () => {
     const client=parseGoogleClient(JSON.parse(readFileSync(picked.filePaths[0],"utf8")));
     await google.configure(client);
   });
-  handle("googleConnect",(service:unknown,write:unknown)=>{
-    if(!["gmail","calendar"].includes(String(service))||typeof write!=="boolean")throw Error("Choose Gmail or Calendar and an explicit permission mode.");
-    return google.connect(service as "gmail"|"calendar",write);
+  handle("googleConnect",async(service:unknown,write:unknown)=>{
+    if((service!=="gmail"&&service!=="calendar")||typeof write!=="boolean")throw Error("Choose Gmail or Calendar and an explicit permission mode.");
+    desktop.broker.cancel();const revision=pluginCatalog.beginConnect(service);
+    await google.connect(service,write);pluginCatalog.finishConnect(service,revision);
   });
-  handle("googleCancel",()=>google.cancel());
+  handle("googleCancel",()=>{const service=google.state.connecting;if(service)pluginCatalog.set(service,false);google.cancel();});
   handle("googleDisconnect",async(service:unknown)=>{
     if(service!=="gmail"&&service!=="calendar")throw Error("Invalid Google service.");
     const choice=await dialog.showMessageBox(window,{type:"question",buttons:["Keep connected","Disconnect"],defaultId:0,cancelId:0,title:"Disconnect Google account",message:`Disconnect ${service==="gmail"?"Gmail":"Calendar"} from this Mac?`,detail:"JARVIS removes this connection's locally stored tokens. Existing chat history remains. To revoke Google's grant too, use Manage Google access; revoking the shared client can affect both connections."});
-    if(choice.response===1)await google.disconnect(service);
+    if(choice.response===1){desktop.broker.cancel();pluginCatalog.set(service,false);await google.disconnect(service);}
   });
   handle("configureReleaseBuildState",async()=>{
     const selected=await dialog.showOpenDialog(window,{title:"Choose private JARVIS release build state",properties:["openDirectory","showHiddenFiles"]});if(selected.canceled)return;
@@ -1028,12 +1156,29 @@ app.whenReady().then(async () => {
     localVoiceActive = active;
     wake.setVoiceActive(active || !!remote?.voiceOwner);
   });
+  handle("browserSurface",(active:unknown)=>{if(typeof active!=="boolean")throw Error("Invalid browser surface.");desktop.browser.surface(active);});
+  handle("browserLayout",(bounds:unknown)=>desktop.browser.layout(bounds as import("./desktop/browser.ts").BrowserBounds));
+  handle("browserAction",async(action:unknown,id:unknown,value:unknown)=>{
+    if(action==="new")return {tabId:desktop.browser.create(true)};
+    if(typeof id!=="string")throw Error("Choose a browser tab.");
+    if(action==="activate")return desktop.browser.activate(id);
+    if(action==="close")return desktop.browser.close(id);
+    if(action==="navigate"){if(typeof value!=="string")throw Error("Enter a page address.");return desktop.browser.navigate(id,value);}
+    if(action==="take-control")return desktop.browser.takeControl(id);
+    if(action==="resume")return desktop.browser.resume(id);
+    if(["back","forward","reload","stop"].includes(String(action)))return desktop.browser.control(id,String(action));
+    if(action==="popup"){const target=desktop.browser.state().tabs.find(t=>t.id===id)?.popup;if(!target)throw Error("No blocked popup for this tab.");desktop.browser.takeControl(id);const tabId=desktop.browser.create(true);await desktop.browser.navigate(tabId,target);return {tabId};}
+    throw Error("Unknown browser action.");
+  });
+  handle("subagentCancel",(id:unknown)=>{if(typeof id!=="string")throw Error("Choose a subagent.");delegations.cancel(id);return delegations.ownerResult(id);});
+  handle("subagentRead",(id:unknown)=>delegations.ownerResult(id));
   handle("send", (text: unknown) => {
     if (typeof text !== "string") throw new Error("Invalid message.");
     return jobs.send(text);
   });
   agent.on("state", () => {
     if (agent.stopping) desktop.browser.stop();
+    if(agent.approvals.size)desktop.browser.surface(false);
   });
   handle("stop", stop);
   handle("stopCurrent", stopCurrent);
@@ -1077,6 +1222,11 @@ app.whenReady().then(async () => {
     if (!patch || typeof patch !== "object")
       throw new Error("Invalid settings.");
     const next = store.settings();
+    if(typeof patch.subagentsEnabled === "boolean") next.subagentsEnabled=patch.subagentsEnabled;
+    if (patch.approvalMode === "always" || patch.approvalMode === "critical") {
+      if (next.approvalMode !== patch.approvalMode) desktop.stop();
+      next.approvalMode = patch.approvalMode;
+    }
     if (liveVoices.includes(patch.voiceName as any))
       next.voiceName = patch.voiceName!;
     for (const k of ["routineChecks", "speakReplies", "keepAvailable"] as const)
@@ -1100,6 +1250,7 @@ app.whenReady().then(async () => {
     )
       next.voiceIdleSeconds = patch.voiceIdleSeconds;
     store.set("settings", next);
+    if(!next.subagentsEnabled)delegations.cancelAll("Read-only subagents were disabled.");
     availability.update(!!next.keepAvailable, powerMonitor.isOnBatteryPower());
     if (wake.enabled !== next.wakeWordEnabled)
       wake.configure(next.wakeWordEnabled);
@@ -1239,6 +1390,7 @@ app.on("before-quit", () => {
   availability?.close();
   monitors?.close();
   jobs?.close();
+  delegations?.close();
   clearInterval(jobsTimer);
   watches?.close();
   clearInterval(watchTimer);
@@ -1252,6 +1404,9 @@ app.on("before-quit", () => {
   globalShortcut.unregisterAll();
   desktop?.broker.removeAllListeners();
   desktop?.stop();
+  desktop?.browser.destroy();
+  extensions?.close();
+  providers?.cancelTest();
   agent?.codex.close();
 });
 app.once("will-quit", () => {

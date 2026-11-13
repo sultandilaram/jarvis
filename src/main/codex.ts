@@ -40,6 +40,12 @@ export class Codex extends EventEmitter {
           "hooks",
           "multi_agent",
           "image_generation",
+          "view_image",
+          "skill_search",
+          "workspace_dependencies",
+          "sleep_tool",
+          "request_permissions_tool",
+          "standalone_web_search",
           "remote_plugin",
         ]
           .flatMap((f) => ["-c", `features.${f}=false`])

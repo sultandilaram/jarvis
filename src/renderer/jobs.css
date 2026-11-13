@@ -1,21 +1,148 @@
-.jobs-panel,.source-monitors{min-width:0;line-height:1.5;color:inherit}
-.job-create{padding-block:12px 20px}
-.job-create>summary{cursor:pointer;font-weight:600;padding-block:10px}
-.job-create label{display:flex;flex-direction:column;gap:8px;margin-block:14px}
-.job-create textarea{min-height:100px;resize:vertical}
-.job-create input,.job-create select,.job-create textarea{width:100%;min-width:0;box-sizing:border-box;font:inherit;color:inherit;background:var(--surface,#0b1e29);border:1px solid var(--line,#3d5b68);border-radius:8px;padding:12px}
-.job-help{color:var(--text-secondary,#b3cdd8);font-size:.875rem;line-height:1.6;margin-block:12px}
-.job-entry{padding-block:18px;border-top:1px solid var(--line,#31515f);overflow-wrap:anywhere}
-.job-entry h3{font-size:1rem;line-height:1.5;margin-block:10px 14px;letter-spacing:0}
-.job-state{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;font-size:.875rem;text-transform:capitalize}
-.job-state span{color:var(--text-secondary,#b3cdd8)}
-.job-entry details>summary{cursor:pointer;padding-block:10px}
-.job-full-goal{white-space:pre-wrap;overflow-wrap:anywhere}
-.job-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
-.job-actions button,.job-resume button,.job-create button{min-height:44px;padding:10px 14px;white-space:normal;text-align:center;border:1px solid var(--line,#3d5b68);border-radius:8px;background:var(--surface,#0b1e29);color:inherit;font:inherit}
-.job-actions button:hover,.job-resume button:hover{background:#173a49}
-.job-actions button:focus-visible,.job-create summary:focus-visible,.job-entry summary:focus-visible,.job-resume button:focus-visible{outline:2px solid #8de7f5;outline-offset:3px}
-.job-actions button:disabled,.job-create button:disabled{opacity:.5;cursor:not-allowed}
-.job-error{color:#ffc4b5}
-.job-resume{margin-top:16px;padding-top:12px;border-top:1px solid var(--line,#31515f)}
-@media(max-width:600px){.job-actions button,.job-create button,.job-resume button{min-height:48px}.job-actions>*{flex:1 1 120px}}
+.jobs-panel,
+.source-monitors {
+  min-width: 0;
+  line-height: 1.5;
+  color: inherit;
+}
+.job-create {
+  padding-block: 12px 20px;
+}
+.job-create > summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding-block: 10px;
+}
+.job-create label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-block: 14px;
+}
+.job-create textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+.job-create input,
+.job-create select,
+.job-create textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  font: inherit;
+  color: inherit;
+  background: var(--surface, #0b1e29);
+  border: 1px solid var(--line, #3d5b68);
+  border-radius: 8px;
+  padding: 12px;
+}
+.job-help {
+  color: var(--text-secondary, #b3cdd8);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  margin-block: 12px;
+}
+.job-entry {
+  padding-block: 18px;
+  border-top: 1px solid var(--line, #31515f);
+  overflow-wrap: anywhere;
+}
+.job-entry h3 {
+  font-size: 1rem;
+  line-height: 1.5;
+  margin-block: 10px 14px;
+  letter-spacing: 0;
+}
+.job-state {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.875rem;
+  text-transform: capitalize;
+}
+.job-state span {
+  color: var(--text-secondary, #b3cdd8);
+}
+.job-entry details > summary {
+  cursor: pointer;
+  padding-block: 10px;
+}
+.job-full-goal {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.job-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.job-actions button,
+.job-resume button,
+.job-create button {
+  min-height: 44px;
+  padding: 10px 14px;
+  white-space: normal;
+  text-align: center;
+  border: 1px solid var(--line, #3d5b68);
+  border-radius: 8px;
+  background: var(--surface, #0b1e29);
+  color: inherit;
+  font: inherit;
+}
+.job-actions button:hover,
+.job-resume button:hover {
+  background: #173a49;
+}
+.job-actions button:focus-visible,
+.job-create summary:focus-visible,
+.job-entry summary:focus-visible,
+.job-resume button:focus-visible {
+  outline: 2px solid #8de7f5;
+  outline-offset: 3px;
+}
+.job-actions button:disabled,
+.job-create button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.job-error {
+  color: #ffc4b5;
+}
+.job-resume {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line, #31515f);
+}
+@media (max-width: 600px) {
+  .job-actions button,
+  .job-create button,
+  .job-resume button {
+    min-height: 48px;
+  }
+  .job-actions > * {
+    flex: 1 1 120px;
+  }
+}
+
+.subagent-list {
+  margin-block: 8px 28px;
+}
+.subagent-list > h3 {
+  font-size: 1.125rem;
+  margin-block: 12px 8px;
+}
+.subagent-list h4 {
+  font-size: 1rem;
+  margin-block: 10px;
+}
+.subagent-file {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+.subagent-file small {
+  color: var(--text-secondary, #b3cdd8);
+  font-size: 0.75rem;
+}

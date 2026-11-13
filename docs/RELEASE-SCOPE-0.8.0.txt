@@ -1,0 +1,92 @@
+JARVIS 0.8.0 local beta — working scope and acceptance gates
+
+Audience: a personal Mac-hosted assistant and independently configured friend-test
+installations. Existing Codex + GPT voice configuration must continue to work.
+
+1. Verified desktop control
+   Complete inert Arc fixture: field values, live input effect, Preview, Submit.
+   Observe actual effects; permission preflight and queued input are not success.
+   The 0.7.3 click failed; the 0.7.4 sender-lifetime fix is still a hypothesis.
+
+2. Approval modes
+   Existing installs retain Ask every time until explicitly changed in Settings.
+   Autopilot permits trusted routine operations only: known ordinary app launch,
+   exact public HTTPS addresses in the operator request, new plain-text
+   drafts in the internal workspace, bounded imports and offline commands inside
+   an already-created isolated project. Existing reads remain available.
+   Always review: opening documents in external apps, sending, form interactions, file replacement/move/trash, network
+   commands, account/security changes, persistent watchers, phone calls, unknown
+   actions/plugins, repository publication/owner merges and privileged builds.
+   No model/page/skill-provided risk label can grant permission. Changing modes
+   invalidates pending actions. Stop and target/context guards still apply.
+
+3. Task providers
+   Codex plus OpenAI-compatible Chat Completions, local Ollama, Claude Messages
+   and Gemini adapters. Configurable endpoint/model and encrypted credentials.
+   Provider task loop always uses the same broker; no inherited shell or plugins.
+   Test connection/tool-call round-trip without desktop effects; distinguish
+   protocol support from model capability and real-account verification.
+   Switching providers requires idle work, starts fresh provider context and
+   never silently reruns interrupted side effects. Secrets do not enter renderer,
+   logs, phone state or public artifacts. Reject redirects carrying credentials.
+   Voice and wake settings remain separate; local task inference does not imply
+   local OpenAI voice processing. No API/account is bundled for alternative users.
+
+4. Skills and plugins
+   Three types: embedded Browser (always enabled), built-in Gmail/Calendar
+   (independent connection and enable state), external MCP HTTP servers.
+   Built-in disable retains credentials but blocks new account requests.
+   Google consent remains in the system browser and requires per-install setup.
+   Create/import/edit/enable/disable/remove bounded instruction skills.
+   Skills are untrusted guidance, not policy or permission grants; no execution
+   of imported scripts. User can inspect exact text before activation.
+   Explicitly connect custom MCP tools with visible endpoint and access scope.
+   No silent extension installation or subprocess startup. Tool calls require
+   exact approval until trusted classifications are implemented. Surface unknown
+   outcomes; no automatic replay of plugin mutations. Disable/revoke promptly.
+
+5. Settings and delivery
+   Existing JARVIS visual identity; Mac-style sidebar, dedicated pages, search.
+   Sections: General, Intelligence, Voice, Autonomy, Skills, Plugins,
+   Devices, Privacy/access, Updates, Developer. Status, empty, busy and failure
+   states must be usable. Existing controls remain functional and discoverable.
+   Validate normal/narrow windows, keyboard navigation, focus and no overflow.
+   Include code/tests, accurate release notes, migration/rollback checks and
+   exact-source locally signed Mac artifacts after owner review/build approval.
+   Android publication remains held while Play Protect classification is unresolved.
+
+6. Embedded browser
+   Browser workspace beside Voice and Chats, up to 16 page tabs, navigation/search,
+   a separate persistent shared login session, manual takeover and reviewed handover.
+   Page targets and approvals bind to exact tab IDs and snapshot generations;
+   visible tab switches cannot retarget actions. Existing-page navigation and tab
+   closure require review. Sensitive pages stay manual. Project workers are denied.
+   Native surfaces hide for Settings/approval overlays. No automatic session-tab
+   restoration, downloads, device grants or popup execution. Explicit owner opening
+   of a blocked HTTP(S) popup is supported. Native embedding needs installed tests.
+
+7. Bounded specialist subagents
+   Explicit opt-in under Autonomy. Parallel read-only analysis, planning and review
+   with fresh sessions using the currently selected task provider/model. Two
+   concurrent workers, six per parent job, five minutes and twenty tool calls
+   per worker, 40,000 reported-token cutoff (in-flight inference can overshoot).
+   Additional inference usage applies. Child tools also consume the parent budget.
+   Share explicit context (24,000 characters) and up to eight selected immutable
+   text project snapshots (100 KB/file, 200 KB total). No full parent chat/account/
+   desktop state is copied. Workers cannot write files, use apps, browse, call
+   accounts/plugins, delegate recursively, approve actions or review repo releases.
+   Parent reviews findings and performs changes through normal broker policy.
+   Jobs shows worker progress, findings, shared-file hashes and cancellation.
+   Stop, corrections, parent completion and disabling cancel children. Restart
+   marks previous live workers interrupted; no inference/tool replay or auto-resume.
+   Protocol fixtures cover four alternative adapters; live Codex/provider-worker
+   inference and installed integration still require acceptance after build approval.
+
+Out of scope: actor voice cloning, unrestricted self-modification, permission
+bypasses, automatic approval of purchases/security changes, online skill-store
+accounts, claims of universal model/plugin compatibility, Apple notarization.
+
+Release gates: meaningful local regressions, immutable independent source review,
+full exact-head trusted CI, actual GitHub owner review for sensitive changes,
+exact-commit privileged build approval, installed acceptance and artifact audit.
+Source preparation is not installation or completion of these gates.

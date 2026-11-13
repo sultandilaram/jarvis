@@ -2,7 +2,13 @@ import React, { useState } from "react";
 import { CalendarDays, Mail, Check, Loader2 } from "lucide-react";
 import type { GoogleState } from "../main/integrations/google";
 import "./google-settings.css";
-export function GoogleSettings({ state }: { state?: GoogleState }) {
+export function GoogleSettings({
+  state,
+  serviceFilter,
+}: {
+  state?: GoogleState;
+  serviceFilter?: "gmail" | "calendar";
+}) {
   const [write, setWrite] = useState({
     gmail: !!state?.gmail?.write,
     calendar: !!state?.calendar?.write,
@@ -26,7 +32,7 @@ export function GoogleSettings({ state }: { state?: GoogleState }) {
   };
   const waiting = !!state?.connecting;
   return (
-    <details className="settings-section google-settings">
+    <details className="settings-section google-settings" open>
       <summary>
         Email and calendar
         {(state?.gmail || state?.calendar) && (
@@ -75,124 +81,127 @@ export function GoogleSettings({ state }: { state?: GoogleState }) {
         </p>
       )}
       <div className="google-connections">
-        {(["gmail", "calendar"] as const).map((service) => {
-          const account = state?.[service],
-            name = service === "gmail" ? "Gmail" : "Google Calendar",
-            Icon = service === "gmail" ? Mail : CalendarDays;
-          const active = state?.connecting === service;
-          return (
-            <section
-              className="google-connection"
-              key={service}
-              aria-labelledby={`google-${service}-title`}
-            >
-              <div className="google-connection-title">
-                <Icon size={21} aria-hidden="true" />
-                <h3 id={`google-${service}-title`}>{name}</h3>
-                <span className="google-connection-status">
-                  {active
-                    ? "Awaiting Google sign-in"
-                    : account
-                      ? "Connected"
-                      : "Not connected"}
-                </span>
-              </div>
-              {account ? (
-                <p className="google-account">
-                  {account.email}
-                  <span>
-                    {account.write
-                      ? service === "gmail"
-                        ? "Read and approved sending"
-                        : "Read and approved event creation"
-                      : "Read-only access"}
+        {(["gmail", "calendar"] as const)
+          .filter((service) => !serviceFilter || service === serviceFilter)
+          .map((service) => {
+            const account = state?.[service],
+              name = service === "gmail" ? "Gmail" : "Google Calendar",
+              Icon = service === "gmail" ? Mail : CalendarDays;
+            const active = state?.connecting === service;
+            return (
+              <section
+                className="google-connection"
+                key={service}
+                aria-labelledby={`google-${service}-title`}
+              >
+                <div className="google-connection-title">
+                  <Icon size={21} aria-hidden="true" />
+                  <h3 id={`google-${service}-title`}>{name}</h3>
+                  <span className="google-connection-status">
+                    {active
+                      ? "Awaiting Google sign-in"
+                      : account
+                        ? "Connected"
+                        : "Not connected"}
                   </span>
-                </p>
-              ) : (
-                <p>
-                  {service === "gmail"
-                    ? "Find messages and read email summaries."
-                    : "Ask about upcoming events on your primary calendar."}
-                </p>
-              )}
-              <label className="google-write-option">
-                <input
-                  type="checkbox"
-                  checked={write[service]}
-                  disabled={busy || waiting}
-                  onChange={(e) =>
-                    setWrite({ ...write, [service]: e.target.checked })
-                  }
-                />
-                <span>
-                  {service === "gmail"
-                    ? "Allow sending after approval"
-                    : "Allow creating events after approval"}
-                  <small>
+                </div>
+                {account ? (
+                  <p className="google-account">
+                    {account.email}
+                    <span>
+                      {account.write
+                        ? service === "gmail"
+                          ? "Read and approved sending"
+                          : "Read and approved event creation"
+                        : "Read-only access"}
+                    </span>
+                  </p>
+                ) : (
+                  <p>
                     {service === "gmail"
-                      ? "Every email shows the sender, recipients and full message before sending."
-                      : "Every event shows its time, details and invitees before creation."}{" "}
-                    Google will ask for this extra permission when you connect.
-                  </small>
-                </span>
-              </label>
-              {account && account.write !== write[service] && (
-                <p className="muted small">
-                  Reconnect to apply this permission change.
-                </p>
-              )}
-              <div className="settings-actions">
-                <button
-                  disabled={!state?.configured || busy || waiting}
-                  onClick={() =>
-                    void perform(() =>
-                      window.jarvis.googleConnect(service, write[service]),
-                    )
-                  }
-                >
-                  {active ? (
-                    <>
-                      <Loader2 size={15} aria-hidden="true" /> Waiting for
-                      sign-in…
-                    </>
-                  ) : account ? (
-                    account.write !== write[service] ? (
-                      `Apply ${name} permissions`
-                    ) : (
-                      `Reconnect ${name}`
-                    )
-                  ) : (
-                    `Connect ${name}`
-                  )}
-                </button>
-                {account && (
-                  <button
-                    className="subtle"
+                      ? "Find messages and read email summaries."
+                      : "Ask about upcoming events on your primary calendar."}
+                  </p>
+                )}
+                <label className="google-write-option">
+                  <input
+                    type="checkbox"
+                    checked={write[service]}
                     disabled={busy || waiting}
+                    onChange={(e) =>
+                      setWrite({ ...write, [service]: e.target.checked })
+                    }
+                  />
+                  <span>
+                    {service === "gmail"
+                      ? "Allow sending after approval"
+                      : "Allow creating events after approval"}
+                    <small>
+                      {service === "gmail"
+                        ? "Every email shows the sender, recipients and full message before sending."
+                        : "Every event shows its time, details and invitees before creation."}{" "}
+                      Google will ask for this extra permission when you
+                      connect.
+                    </small>
+                  </span>
+                </label>
+                {account && account.write !== write[service] && (
+                  <p className="muted small">
+                    Reconnect to apply this permission change.
+                  </p>
+                )}
+                <div className="settings-actions">
+                  <button
+                    disabled={!state?.configured || busy || waiting}
                     onClick={() =>
                       void perform(() =>
-                        window.jarvis.googleDisconnect(service),
+                        window.jarvis.googleConnect(service, write[service]),
                       )
                     }
                   >
-                    Disconnect {name}
+                    {active ? (
+                      <>
+                        <Loader2 size={15} aria-hidden="true" /> Waiting for
+                        sign-in…
+                      </>
+                    ) : account ? (
+                      account.write !== write[service] ? (
+                        `Apply ${name} permissions`
+                      ) : (
+                        `Reconnect ${name}`
+                      )
+                    ) : (
+                      `Connect ${name}`
+                    )}
                   </button>
+                  {account && (
+                    <button
+                      className="subtle"
+                      disabled={busy || waiting}
+                      onClick={() =>
+                        void perform(() =>
+                          window.jarvis.googleDisconnect(service),
+                        )
+                      }
+                    >
+                      Disconnect {name}
+                    </button>
+                  )}
+                </div>
+                {active && (
+                  <p role="status">
+                    Finish sign-in in your browser.{" "}
+                    <button
+                      className="subtle"
+                      onClick={() => void window.jarvis.googleCancel()}
+                    >
+                      Cancel sign-in
+                    </button>
+                  </p>
                 )}
-              </div>
-              {active && (
-                <p role="status">
-                  Finish sign-in in your browser.{" "}
-                  <button
-                    className="subtle"
-                    onClick={() => void window.jarvis.googleCancel()}
-                  >
-                    Cancel sign-in
-                  </button>
-                </p>
-              )}
-            </section>
-          );
-        })}
+              </section>
+            );
+          })}
       </div>
       {(error || state?.error) && (
         <p className="google-error" role="alert">

@@ -5,7 +5,7 @@ export function UpdateSettings({state,voiceBusy,run}:{state:Snapshot;voiceBusy:b
  const busy=['checking','downloading','ready'].includes(phase);
  const releaseBusy=!!state.releases&&['preparing','building','verifying','publishing'].includes(state.releases.phase);
  const waiting=!!state.activeTaskId||voiceBusy||!!state.remote?.voiceActive||releaseBusy;
- return <details className="settings-section"><summary>App updates</summary>
+ return <details className="settings-section" open><summary>App updates</summary>
   <p>Installed version {u?.current||'development'}. Updates come from sultandilaram/jarvis and require a verified release signature.</p>
   <p role="status" aria-live="polite">{phase==='idle'?'Check for a published release.':phase==='checking'?'Checking GitHub…':phase==='latest'?'No newer stable release was reported.':phase==='available'?`Version ${u?.release?.version} is verified and available.`:phase==='downloading'?'Downloading and verifying the update…':phase==='ready'?'Update verified. Preparing restart…':'The update check could not finish.'}</p>
   {u?.error&&<p role="alert">{u.error}</p>}

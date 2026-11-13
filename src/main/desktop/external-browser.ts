@@ -2,6 +2,7 @@ import { extname } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { FileAccess } from "./files.ts";
 import type { ActionPlan } from "./broker.ts";
+import { authorizedNavigation } from "./approval-policy.ts";
 
 export const externalBrowsers: Readonly<Record<string, string>> = Object.freeze({
   "company.thebrowser.Browser": "Arc",
@@ -16,6 +17,7 @@ export async function planExternalBrowser(
   args: Record<string, unknown>,
   files: FileAccess,
   launch: (args: { bundleId: string; url: string }, signal: AbortSignal) => Promise<unknown>,
+  navigationTargets: readonly string[] = [],
 ): Promise<ActionPlan> {
   const bundleId = args.bundleId;
   if (typeof bundleId !== "string" || !Object.hasOwn(externalBrowsers, bundleId))
@@ -48,6 +50,7 @@ export async function planExternalBrowser(
   return {
     title: `Open in ${externalBrowsers[bundleId]}`,
     approval: true,
+    routine: !local && authorizedNavigation(url, navigationTargets) ? "browse" : undefined,
     preview: { browser: externalBrowsers[bundleId], bundleId, url, ...local,
       effect: "Open this target in the selected installed browser and its existing profile. Local HTML can run scripts and contact websites. This does not grant DOM control or prove the page loaded." },
     verify,

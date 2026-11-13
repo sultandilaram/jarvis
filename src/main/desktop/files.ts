@@ -178,6 +178,7 @@ export class FileAccess {
       return {
         title: `${before ? "Replace" : "Create"} ${path}`,
         approval: true,
+        routine: !before && this.internalWorkspace && path.startsWith(resolve(this.internalWorkspace) + sep) && [".txt", ".md", ".csv"].includes(extname(path).toLowerCase()) ? "new-draft" : undefined,
         preview: {
           path,
           beforeSha256: before?.sha256 || null,

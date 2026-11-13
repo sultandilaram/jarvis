@@ -1,3 +1,4 @@
+import { phoneApprovals, checkVisualApproval } from "./visual-approvals.ts";
 import { createHash } from "node:crypto";
 import {
   pendingAttention,
@@ -321,6 +322,7 @@ export class RemoteLink extends EventEmitter {
         ...s,
         remote: undefined,
         memories: [],
+        approvals: phoneApprovals(s.approvals,p?.visualPreview),
         maintenance:s.maintenance?{...s.maintenance,pulls:s.maintenance.pulls.slice(0,10),proposals:s.maintenance.proposals.slice(0,10).map(p=>({...p,goal:p.goal.slice(0,2000),review:p.review?.slice(0,4000),changes:p.changes?.slice(0,50)}))}:undefined,
         entries: s.entries
           .filter((e) => e.role !== "activity")
@@ -404,6 +406,7 @@ export class RemoteLink extends EventEmitter {
         typeof p?.accept !== "boolean"
       )
         throw Error("Invalid approval");
+      checkVisualApproval(this.snapshotLocal().approvals,p.id,p.accept,p.visualPreview);
       return this.invoke("approve", p);
     }
     if (method === "answer") {
