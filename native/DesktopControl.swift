@@ -7,15 +7,53 @@ func string(_ e:AXUIElement,_ key:String)->String { return attr(e,key) as? Strin
 func children(_ e:AXUIElement)->[AXUIElement] {return attr(e,kAXChildrenAttribute) as? [AXUIElement] ?? []}
 func window(_ pid:pid_t)throws->AXUIElement {let app=AXUIElementCreateApplication(pid);guard let w=attr(app,kAXFocusedWindowAttribute) else{throw NSError(domain:"No focused window",code:1)};return (w as! AXUIElement)}
 let browserBundles:Set<String> = ["company.thebrowser.Browser","com.apple.Safari","com.google.Chrome","com.brave.Browser","com.microsoft.edgemac","org.mozilla.firefox"]
+// This compile-time copy is checked byte-for-byte against the shared JSON before packaging.
+let desktopSensitivePattern = #"password|passcode|secret|token|credential|api.?key|private.?key|cvv|cvc|credit.?card|card.?number|payment|one.?time|otp|verification.?code|security.?code|bank.?account|routing.?number|iban|social.?security|ssn|seed.?phrase|recovery.?code|recovery.?phrase|backup.?code|(?:^|[^a-z])pin(?:$|[^a-z])"#
+let sensitiveContextRoles:Set<String> = ["AXTextField","AXTextArea","AXComboBox","AXSecureTextField","AXGroup","AXWindow"]
 func fieldIsSensitive(_ role:String,_ subrole:String,_ label:String,_ identifier:String="",_ help:String="",_ placeholder:String="")->Bool {
- if subrole.lowercased().contains("secure"){return true}
- guard ["AXTextField","AXTextArea","AXComboBox","AXSecureTextField"].contains(role) else{return false}
- let context=[label,identifier,help,placeholder].joined(separator:" ")
- return context.range(of:"password|passcode|secret|token|api.?key|private.?key|cvv|cvc|credit.?card|card.?number|one.?time|otp|verification.?code|security.?code|bank.?account|routing.?number|iban|social.?security|ssn|seed.?phrase|recovery.?code|(?:^|[^a-z])pin(?:$|[^a-z])",options:[.regularExpression,.caseInsensitive]) != nil
+ if role=="AXSecureTextField" || subrole.lowercased().contains("secure"){return true}
+ guard sensitiveContextRoles.contains(role) else{return false}
+ let context=[subrole,label,identifier,help,placeholder].joined(separator:" ").replacingOccurrences(of:"([a-z])([A-Z])",with:"$1 $2",options:.regularExpression).replacingOccurrences(of:"\\s+",with:" ",options:.regularExpression)
+ return context.range(of:desktopSensitivePattern,options:[.regularExpression,.caseInsensitive]) != nil
 }
 func browserPageAllowed(_ value:String)->Bool {guard let u=URL(string:value),["http","https","file"].contains(u.scheme ?? ""),u.user==nil,u.password==nil else{return false};return true}
-func elementSensitive(_ e:AXUIElement)->Bool {fieldIsSensitive(string(e,kAXRoleAttribute),string(e,kAXSubroleAttribute),string(e,kAXTitleAttribute)+" "+string(e,kAXDescriptionAttribute),string(e,"AXIdentifier"),string(e,kAXHelpAttribute),string(e,"AXPlaceholderValue"))}
+func elementSensitive(_ e:AXUIElement)->Bool {
+ let role=string(e,kAXRoleAttribute),subrole=string(e,kAXSubroleAttribute)
+ if role=="AXSecureTextField" || subrole.lowercased().contains("secure"){return true}
+ guard sensitiveContextRoles.contains(role) else{return false}
+ return fieldIsSensitive(role,subrole,string(e,kAXTitleAttribute)+" "+string(e,kAXDescriptionAttribute),string(e,"AXIdentifier"),string(e,kAXHelpAttribute),string(e,"AXPlaceholderValue"))
+}
 func boundedValue(_ value:String,_ secure:Bool)->(String,Bool) {if secure{return ("[redacted]",false)};return (String(value.prefix(1000)),value.count>1000)}
+func snapshotFields(_ label:String,_ subrole:String,_ value:String,_ secure:Bool)->[String:String] {
+ return ["label":secure ? "[sensitive control]":label,"subrole":secure ? "[sensitive]":subrole,"value":secure ? "[redacted]":value]
+}
+func guardedValueRead(_ sensitive:()->Bool,_ read:()->String)throws->String {
+ guard !sensitive() else{throw NSError(domain:"Control became protected; no value read. Inspect again and do not replay uncertain input.",code:1)}
+ return read()
+}
+let scalarValueRoles:Set<String> = ["AXTextField","AXTextArea","AXComboBox","AXSecureTextField","AXStaticText","AXButton","AXLink","AXCheckBox","AXRadioButton","AXPopUpButton","AXSlider","AXIncrementor","AXProgressIndicator","AXLevelIndicator","AXValueIndicator","AXDateField","AXTimeField","AXColorWell"]
+func scalarValue(_ role:String,_ read:()->String)->String {
+ guard scalarValueRoles.contains(role) else{return ""}
+ return read()
+}
+func unprotectedTarget<T>(_ root:T,_ path:[Int],_ protected:(T)->Bool,_ descend:(T)->[T])throws->T {
+ guard path.count<=32 else{throw NSError(domain:"Control path exceeds inspection bounds",code:1)}
+ var current=root
+ for index in path {
+  guard !protected(current) else{throw NSError(domain:"Control ancestor became protected; no child or value read",code:1)}
+  let list=descend(current)
+  guard index>=0,index<list.count else{throw NSError(domain:"Control path changed; inspect again",code:1)}
+  current=list[index]
+ }
+ guard !protected(current) else{throw NSError(domain:"Control became protected; no value read",code:1)}
+ return current
+}
+func pathValue(_ root:AXUIElement,_ path:String,_ expected:AXUIElement)throws->String {
+ let indices=try path.split(separator:".").map{part->Int in guard let n=Int(part),n>=0 else{throw NSError(domain:"Invalid control path",code:1)};return n}
+ let current=try unprotectedTarget(root,indices,elementSensitive,children)
+ guard CFEqual(current,expected) else{throw NSError(domain:"Control identity changed; no value read",code:1)}
+ return scalarValue(string(current,kAXRoleAttribute),{valueString(current)})
+}
 func valueString(_ e:AXUIElement)->String {let v=attr(e,kAXValueAttribute);if let s=v as? String{return s};if let n=v as? NSNumber{return n.stringValue};return ""}
 // Pointer input is derived from an observed accessible button/link, never caller coordinates.
 func validFrame(_ f:[String:Double])->Bool {
@@ -68,12 +106,17 @@ func verifyFocusedContext(_ app:NSRunningApplication,_ w:AXUIElement,_ a:[String
  while !focused() && ProcessInfo.processInfo.systemUptime<until {RunLoop.current.run(until:Date().addingTimeInterval(0.03))}
  guard focused(),let expected=a["contextSnapshot"] as? [String:Any],sameControlSnapshot(expected,nativeSnapshot(app,w,isBrowser),isBrowser,requireIdentity) else{throw NSError(domain:"Complete window context changed after focus; no input sent",code:1)}
 }
+func protectedWindowSnapshot(_ bundleId:String,_ pid:Int32,_ browser:Bool)->[String:Any] {
+ return ["bundleId":bundleId,"pid":pid,"window":"[sensitive window]","windowIdentifier":"","documentURL":"","windowKind":browser ? "web":"native","pageContentAvailable":false,"truncated":false,"elements":[["id":"","role":"AXWindow","label":"[sensitive control]","subrole":"[sensitive]","value":"[redacted]","secure":true,"actions":[],"pressMethod":"none","frame":[:]]]]
+}
 func nativeSnapshot(_ app:NSRunningApplication,_ w:AXUIElement,_ browserHint:Bool)->[String:Any] {
+ let windowSecure=elementSensitive(w)
+ if windowSecure{return protectedWindowSnapshot(app.bundleIdentifier ?? "",app.processIdentifier,browserHint)}
  let isBrowser=browserHint || pageRoot(w) != nil
  let title=string(w,kAXTitleAttribute)
   var nodes:[[String:Any]]=[];var truncated=false;let limit=500;let depthLimit=20;let deadline=ProcessInfo.processInfo.systemUptime+2
-  func visit(_ e:AXUIElement,_ path:[Int],_ depth:Int){if nodes.count>=limit||depth>depthLimit||ProcessInfo.processInfo.systemUptime>=deadline{truncated=true;return};let role=string(e,kAXRoleAttribute);let sub=string(e,kAXSubroleAttribute);let secure=elementSensitive(e);let(value,valueTruncated)=boundedValue(valueString(e),secure);if valueTruncated {truncated=true};let actions=actionNames(e);let frame = !secure && ["AXButton","AXLink"].contains(role) && !actions.contains("AXPress") ? elementFrame(e) : [:];let method=pressMethod(role,secure,!string(w,"AXIdentifier").isEmpty,actions,attr(e,kAXEnabledAttribute) as? Bool,centerOnDisplay(frame))
-   nodes.append(["id":path.map(String.init).joined(separator:"."),"role":role,"subrole":sub,"label":string(e,kAXTitleAttribute).isEmpty ? string(e,kAXDescriptionAttribute) : string(e,kAXTitleAttribute),"value":value,"secure":secure,"actions":actions,"pressMethod":method,"frame":method=="pointer" ? frame : [:]]);if !secure {for(i,c) in children(e).enumerated(){visit(c,path+[i],depth+1)}}
+  func visit(_ e:AXUIElement,_ path:[Int],_ depth:Int){if nodes.count>=limit||depth>depthLimit||ProcessInfo.processInfo.systemUptime>=deadline{truncated=true;return};let role=string(e,kAXRoleAttribute);let sub=string(e,kAXSubroleAttribute);let secure=elementSensitive(e);let(value,valueTruncated)=boundedValue(secure ? "" : scalarValue(role,{valueString(e)}),secure);if valueTruncated {truncated=true};let actions=actionNames(e);let frame = !secure && ["AXButton","AXLink"].contains(role) && !actions.contains("AXPress") ? elementFrame(e) : [:];let method=pressMethod(role,secure,!string(w,"AXIdentifier").isEmpty,actions,attr(e,kAXEnabledAttribute) as? Bool,centerOnDisplay(frame))
+   let fields=snapshotFields(secure ? "" : (string(e,kAXTitleAttribute).isEmpty ? string(e,kAXDescriptionAttribute) : string(e,kAXTitleAttribute)),sub,value,secure);nodes.append(["id":path.map(String.init).joined(separator:"."),"role":role,"subrole":fields["subrole"]!,"label":fields["label"]!,"value":fields["value"]!,"secure":secure,"actions":secure ? [] : actions,"pressMethod":method,"frame":method=="pointer" ? frame : [:]]);if !secure {for(i,c) in children(e).enumerated(){visit(c,path+[i],depth+1)}}
   };let document=isBrowser ? pageURL(w) : "";let available = !isBrowser || browserPageAllowed(document)
   if isBrowser {if available,let(root,path)=pageRoot(w){visit(root,path,0)}}else{visit(w,[],0)}
   return ["bundleId":app.bundleIdentifier ?? "","pid":app.processIdentifier,"window":title,"windowKind":isBrowser ? "web" : "native","elements":nodes,"documentURL":available ? document : "","windowIdentifier":string(w,"AXIdentifier"),"truncated":truncated,"pageContentAvailable":available]
@@ -91,7 +134,7 @@ func drainPostedClick(){
 func dispatchPointerPress(_ target:AXUIElement,_ w:AXUIElement,_ app:NSRunningApplication,_ a:[String:Any],_ isBrowser:Bool)throws->[String:Any] {
  guard let expected=a["frame"] as? [String:Double],validFrame(expected),elementFrame(target)==expected,centerOnDisplay(expected) else{throw NSError(domain:"Control bounds changed or are off screen; inspect again",code:1)}
  try verifyFocusedContext(app,w,a,isBrowser,true)
- guard NSWorkspace.shared.frontmostApplication?.processIdentifier==app.processIdentifier,CFEqual(try window(app.processIdentifier),w),string(w,kAXTitleAttribute)==a["window"] as? String,string(w,"AXIdentifier")==a["windowIdentifier"] as? String,(!isBrowser || pageURL(w)==a["documentURL"] as? String),elementFrame(target)==expected,!elementSensitive(target),valueString(target)==a["value"] as? String,string(target,kAXRoleAttribute)==a["role"] as? String,string(target,kAXSubroleAttribute)==a["subrole"] as? String,(string(target,kAXTitleAttribute).isEmpty ? string(target,kAXDescriptionAttribute):string(target,kAXTitleAttribute))==a["label"] as? String,(attr(target,kAXEnabledAttribute) as? Bool)==true else{throw NSError(domain:"Control or focused window changed before click; inspect again",code:1)}
+ guard NSWorkspace.shared.frontmostApplication?.processIdentifier==app.processIdentifier,CFEqual(try window(app.processIdentifier),w),string(w,kAXTitleAttribute)==a["window"] as? String,string(w,"AXIdentifier")==a["windowIdentifier"] as? String,(!isBrowser || pageURL(w)==a["documentURL"] as? String),elementFrame(target)==expected,try pathValue(w,a["elementId"] as? String ?? "",target)==a["value"] as? String,string(target,kAXRoleAttribute)==a["role"] as? String,string(target,kAXSubroleAttribute)==a["subrole"] as? String,(string(target,kAXTitleAttribute).isEmpty ? string(target,kAXDescriptionAttribute):string(target,kAXTitleAttribute))==a["label"] as? String,(attr(target,kAXEnabledAttribute) as? Bool)==true else{throw NSError(domain:"Control or focused window changed before click; inspect again",code:1)}
  guard let context=a["contextSnapshot"] as? [String:Any],sameControlSnapshot(context,nativeSnapshot(app,w,isBrowser),isBrowser,true) else{throw NSError(domain:"Window context changed after focus; no click sent",code:1)}
  let center=frameCenter(expected);var hit:AXUIElement?
  guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(),Float(center.x),Float(center.y),&hit) == .success,let hit=hit,hitIsTarget(hit,target,app.processIdentifier) else{throw NSError(domain:"Control is covered or hit test changed; no click sent",code:1)}
@@ -101,14 +144,23 @@ func dispatchPointerPress(_ target:AXUIElement,_ w:AXUIElement,_ app:NSRunningAp
  try postClickOnce({CGPreflightPostEventAccess()},{down.post(tap:.cghidEventTap)},{up.post(tap:.cghidEventTap)},drainPostedClick)
  return ["dispatched":true,"verified":false,"inputMethod":"pointer","note":"One click queued for the revalidated, hit-tested accessible control; sender stayed alive briefly. Event-posting permission and queueing do not prove delivery. Observe the page to verify its effect; do not replay an uncertain submission."]
 }
-func settledValue(_ read:()->String,_ expected:String,_ timeout:TimeInterval=1.5)->String {
- let end=ProcessInfo.processInfo.systemUptime+timeout;var value=read()
- while value != expected && ProcessInfo.processInfo.systemUptime<end {RunLoop.current.run(until:Date().addingTimeInterval(0.03));value=read()}
+func settledValue(_ read:()throws->String,_ expected:String,_ timeout:TimeInterval=1.5)rethrows->String {
+ let end=ProcessInfo.processInfo.systemUptime+timeout;var value=try read()
+ while value != expected && ProcessInfo.processInfo.systemUptime<end {RunLoop.current.run(until:Date().addingTimeInterval(0.03));value=try read()}
  return value
 }
+func unprotectedPageRoot<T>(_ root:T,_ role:(T)->String,_ protected:(T)->Bool,_ childNodes:(T)->[T])->(T,[Int])? {
+ var queue:[(T,[Int])]=[(root,[])],index=0;let deadline=Date().addingTimeInterval(0.4)
+ while index<queue.count && index<400 && Date()<deadline {
+  let(e,path)=queue[index];index+=1
+  if protected(e){continue}
+  if role(e)=="AXWebArea"{return(e,path)}
+  if path.count<12{queue += childNodes(e).enumerated().map{($0.element,path+[$0.offset])}}
+ }
+ return nil
+}
 func pageRoot(_ root:AXUIElement)->(AXUIElement,[Int])? {
- var queue:[(AXUIElement,[Int])]=[(root,[])],index=0;let deadline=Date().addingTimeInterval(0.4)
- while index<queue.count && index<400 && Date()<deadline {let(e,path)=queue[index];index+=1;if string(e,kAXRoleAttribute)=="AXWebArea" {return (e,path)};if path.count<12 {queue += children(e).enumerated().map{($0.element,path+[$0.offset])}}};return nil
+ unprotectedPageRoot(root,{string($0,kAXRoleAttribute)},elementSensitive,children)
 }
 func pageURL(_ root:AXUIElement)->String {
  guard let(e,_)=pageRoot(root) else{return ""};if let u=attr(e,"AXURL") as? URL{return u.absoluteString};if let u=attr(e,"AXURL") as? String{return u};return ""
@@ -200,6 +252,26 @@ func run(_ a:[String:Any])throws->[String:Any]{
  if action == "test.contextPolicy" {return ["allowed":sameBrowserSnapshot(a["expected"] as? [String:Any] ?? [:],a["actual"] as? [String:Any] ?? [:])]}
  if action == "test.readback" {let values=a["values"] as? [String] ?? [""];var reads=0;let value=settledValue({let i=min(reads,max(0,values.count-1));reads+=1;return values.isEmpty ? "" : values[i]},a["expected"] as? String ?? "",a["timeout"] as? Double ?? 0.15);return ["value":value,"reads":reads]}
  if action == "test.pressPolicy" {return ["method":pressMethod(a["role"] as? String ?? "",a["secure"] as? Bool ?? false,a["pointerAllowed"] as? Bool ?? a["browser"] as? Bool ?? false,a["actions"] as? [String] ?? [],a["enabled"] as? Bool,validFrame(a["frame"] as? [String:Double] ?? [:]))]}
+ if action == "test.snapshotFields" {return snapshotFields(a["label"] as? String ?? "",a["subrole"] as? String ?? "",a["value"] as? String ?? "",a["secure"] as? Bool ?? false)}
+ if action == "test.guardedRead" {var events:[String]=[];do{let value=try guardedValueRead({events.append("classify");return a["secure"] as? Bool ?? false},{events.append("read");return "INERT-CANARY"});return ["events":events,"blocked":false,"value":value]}catch{return ["events":events,"blocked":true]}}
+ if action == "test.protectedWindow" {return protectedWindowSnapshot("com.example.Fixture",123,a["browser"] as? Bool ?? false)}
+ if action == "test.pageRoot" {
+  let nodes=a["nodes"] as? [[String:Any]] ?? [];var expanded:[Int]=[]
+  if nodes.isEmpty{return ["found":false,"expanded":expanded]}
+  let result=unprotectedPageRoot(0,{nodes[$0]["role"] as? String ?? ""},{let n=nodes[$0];return fieldIsSensitive(n["role"] as? String ?? "",n["subrole"] as? String ?? "",n["label"] as? String ?? "")},{id in expanded.append(id);return (nodes[id]["children"] as? [Int] ?? []).filter{nodes.indices.contains($0)}})
+  if let(node,path)=result{return ["found":true,"node":node,"path":path,"expanded":expanded]}
+  return ["found":false,"expanded":expanded]
+ }
+ if action == "test.ancestorReadback" {
+  var protected=false,reads=0,expansions=0
+  do {let value=try settledValue({
+   if reads>0{protected=true}
+   _ = try unprotectedTarget(0,[0,0],{node in node==1 && protected},{node in expansions+=1;return node==0 ? [1]:[2]})
+   reads+=1;return "Before"
+  },"Blue",0.15);return ["blocked":false,"reads":reads,"expansions":expansions,"value":value]}
+  catch{return ["blocked":true,"reads":reads,"expansions":expansions]}
+ }
+ if action == "test.scalarValue" {var reads=0;let value=scalarValue(a["role"] as? String ?? "",{reads+=1;return "INERT-SCALAR-CANARY"});return ["reads":reads,"value":value]}
  if action == "test.snapshotValue" {let(value,truncated)=boundedValue(a["value"] as? String ?? "",a["secure"] as? Bool ?? false);return ["value":value,"truncated":truncated]}
  if action == "test.browserPagePolicy" {return ["allowed":browserPageAllowed(a["url"] as? String ?? "")]}
  if action == "test.fieldPolicy" {return ["sensitive":fieldIsSensitive(a["role"] as? String ?? "",a["subrole"] as? String ?? "",a["label"] as? String ?? "",a["identifier"] as? String ?? "",a["help"] as? String ?? "",a["placeholder"] as? String ?? "")]}
@@ -248,10 +320,10 @@ func run(_ a:[String:Any])throws->[String:Any]{
  }
  guard let path=a["elementId"] as? String else{throw NSError(domain:"Element id required",code:1)}
  guard title == a["window"] as? String,app.processIdentifier == a["pid"] as? Int32 else{throw NSError(domain:"Target window changed; observe again",code:1)}
- var target=w
- for part in path.split(separator:"."){guard let i=Int(part),i>=0,i<children(target).count else{throw NSError(domain:"Element changed",code:1)};target=children(target)[i]}
+ let indices=try path.split(separator:".").map{part->Int in guard let n=Int(part),n>=0 else{throw NSError(domain:"Invalid control path",code:1)};return n}
+ let target=try unprotectedTarget(w,indices,elementSensitive,children)
  let role=string(target,kAXRoleAttribute),sub=string(target,kAXSubroleAttribute),label=string(target,kAXTitleAttribute).isEmpty ? string(target,kAXDescriptionAttribute) : string(target,kAXTitleAttribute)
- guard role == a["role"] as? String,label == a["label"] as? String,sub == a["subrole"] as? String,valueString(target) == a["value"] as? String,!elementSensitive(target) else{throw NSError(domain:"Element changed or is secure; observe again",code:1)}
+ guard role == a["role"] as? String,label == a["label"] as? String,sub == a["subrole"] as? String,try pathValue(w,path,target) == a["value"] as? String else{throw NSError(domain:"Element changed or is secure; observe again",code:1)}
  app.activate(options:[])
  if action == "desktop.scroll_to" {
   try verifyFocusedContext(app,w,a,isBrowser,isBrowser)
@@ -266,7 +338,7 @@ func run(_ a:[String:Any])throws->[String:Any]{
   guard method=="accessibility",AXUIElementPerformAction(target,kAXPressAction as CFString) == .success else{throw NSError(domain:"App rejected press; inspect before retrying",code:1)}
   return ["dispatched":true,"verified":false,"inputMethod":"accessibility","note":"Observe the app to verify the effect; do not replay an uncertain submission."]
  }
- if action == "desktop.type",let text=a["text"] as? String,[kAXTextFieldRole,kAXTextAreaRole].contains(role){try verifyFocusedContext(app,w,a,isBrowser,isBrowser);guard AXUIElementSetAttributeValue(target,kAXValueAttribute as CFString,text as CFString) == .success else{throw NSError(domain:"App rejected text change",code:1)};let value=settledValue({valueString(target)},text);return ["dispatched":true,"verified":value==text,"value":value,"note":"Text was sent once. Re-observe the field and page input effects; do not replay an uncertain change."]}
+ if action == "desktop.type",let text=a["text"] as? String,[kAXTextFieldRole,kAXTextAreaRole].contains(role){try verifyFocusedContext(app,w,a,isBrowser,isBrowser);guard AXUIElementSetAttributeValue(target,kAXValueAttribute as CFString,text as CFString) == .success else{throw NSError(domain:"App rejected text change",code:1)};let value=try settledValue({try pathValue(w,path,target)},text);return ["dispatched":true,"verified":value==text,"value":value,"note":"Text was sent once. Re-observe the field and page input effects; do not replay an uncertain change."]}
  throw NSError(domain:"Unsupported desktop operation",code:1)
 }
 do {let data=FileHandle.standardInput.readDataToEndOfFile();let args=try JSONSerialization.jsonObject(with:data) as? [String:Any] ?? [:];output(try run(args))}catch{output(["error":error.localizedDescription,"detail":String(describing:error),"verified":false]);exit(1)}

@@ -14,6 +14,7 @@ export function projectSandbox(
   tools: string[] = [],
   proxyPort?: number,
 ) {
+  if(process.platform !== "darwin")throw Error("Isolated project execution is unavailable on this platform; no unconfined fallback is permitted.");
   const readable = [
     root,
     "/System",
@@ -43,7 +44,7 @@ export function projectSandbox(
   const ancestors = new Set<string>();
   for (const p of readable) {
     let parent = dirname(p);
-    while (parent !== "/") {
+    while (parent !== dirname(parent)) {
       ancestors.add(parent);
       parent = dirname(parent);
     }
