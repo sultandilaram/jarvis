@@ -1,3 +1,4 @@
+import { requestedNavigationTargets } from "./desktop/approval-policy.ts";
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -34,8 +35,10 @@ export type Job = {
   threadTokenTotal?: number;
   source?: string;
   notBefore?: number;
+  operatorNavigationTargets?: string[];
 };
 export class JobManager {
+  onCreated?: (job: Job) => void;
   running: string | null = null;
   starting = false;
   closed = false;
@@ -189,6 +192,7 @@ export class JobManager {
     };
     if (profile === "project")
       mkdirSync(job.workspace, { recursive: true, mode: 0o700 });
+    this.onCreated?.(job);
     this.save(job);
     if (userInitiated) {
       this.enabled = true;
@@ -199,9 +203,23 @@ export class JobManager {
     return job;
   }
   async send(text: string) {
-    if (this.agent.active || this.agent.busy) return this.agent.send(text);
+    const navigationTargets = requestedNavigationTargets(text);
+    if (this.agent.active || this.agent.busy) {
+      const current = this.current();
+      // A correction revokes previous automatic destinations immediately. A
+      // failed steering request must not grant new destinations or retain old ones.
+      this.agent.navigationTargets = [];
+      if (current) { current.operatorNavigationTargets = []; this.save(current); }
+      const result = await this.agent.send(text, navigationTargets);
+      if (current && this.current()?.id === current.id) {
+        current.operatorNavigationTargets = [...navigationTargets];
+        this.save(current);
+      }
+      return result;
+    }
     const threadId = this.agent.threadId;
     const job = this.enqueue({ goal: text });
+    job.operatorNavigationTargets = navigationTargets;
     job.threadId = threadId || undefined;
     this.save(job);
     return job;
@@ -281,6 +299,7 @@ export class JobManager {
       id: job.id,
       profile: job.profile,
       workspace: job.workspace,
+      source: job.source,
     };
     this.agent.threadId = job.threadId || null;
     const prompt = job.taskId
@@ -290,7 +309,7 @@ export class JobManager {
     job.error = undefined;
     this.save(job);
     try {
-      await this.agent.send(prompt);
+      await this.agent.send(prompt, job.operatorNavigationTargets || []);
     } catch (e) {
       job.state = "failed";
       job.error = String(e);

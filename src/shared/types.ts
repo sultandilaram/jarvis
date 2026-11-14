@@ -27,6 +27,8 @@ export type Memory = {
   scope?: string;
 };
 export type Settings = {
+  subagentsEnabled?: boolean;
+  approvalMode?: "always" | "critical";
   keepAvailable?: boolean;
   routineChecks: boolean;
   speakReplies: boolean;
@@ -74,15 +76,31 @@ export type RemoteState = {
   pending: { id: string; name: string; code: string; expires: number } | null;
 };
 export type Snapshot = {
+  subagents?: import("../main/delegation").SubagentRun[];
+  pluginCatalog?: import("../main/extensions/catalog").CatalogEntry[];
+  browser?: import("../main/desktop/browser").BrowserState;
+  extensions?: import("../main/extensions/manager").ExtensionState;
+  providers?: import("../main/providers/manager").ProviderState;
   google?: import("../main/integrations/google.ts").GoogleState;
-  releases?: Omit<import("../main/local-releases.ts").LocalReleaseState,"log"> & {configured:boolean};
-  maintenance?: ReturnType<import("../main/maintenance.ts").Maintenance["summary"]>;
+  releases?: Omit<
+    import("../main/local-releases.ts").LocalReleaseState,
+    "log"
+  > & { configured: boolean };
+  maintenance?: ReturnType<
+    import("../main/maintenance.ts").Maintenance["summary"]
+  >;
   updates?: import("../main/updater.ts").UpdateState;
   monitors?: import("../main/monitors.ts").Monitor[];
   jobs?: import("../main/jobs.ts").Job[];
   watches?: import("../main/watch.ts").WatchState;
   remote?: RemoteState;
-  desktop?: { roots: string[]; capabilities: string[]; accessibility: boolean };
+  desktop?: {
+    roots: string[];
+    capabilities: string[];
+    accessibility: boolean;
+    eventPosting?: boolean;
+    screenCapture?: boolean;
+  };
   background?: BackgroundState;
   status: Status;
   error: string | null;
@@ -115,20 +133,59 @@ export type VoiceEvent = {
   createdAt: string;
 };
 export type Api = {
+  subagentCancel:(id:string)=>Promise<unknown>;
+  subagentRead:(id:string)=>Promise<import("../main/delegation").SubagentRun>;
+  browserSurface(active: boolean): Promise<void>;
+  browserLayout(
+    bounds: import("../main/desktop/browser").BrowserBounds,
+  ): Promise<void>;
+  browserAction(
+    action: string,
+    tabId?: string,
+    value?: string,
+  ): Promise<{ tabId?: string } | void>;
+  onBrowserReveal(fn: () => void): () => void;
+  desktopCheckAccess(): Promise<{
+    accessibility: boolean;
+    eventPosting: boolean;
+    screenCapture: boolean;
+  }>;
+  desktopScreenPermissions(): Promise<void>;
+  providerTestVision(
+    kind: string,
+  ): Promise<{ visionVerified: boolean; note: string }>;
+  providerCancelTest(): Promise<void>;
+  skillSave(value: unknown): Promise<string>;
+  skillImport(): Promise<{
+    name: string;
+    text: string;
+    scope: string;
+    enabled: boolean;
+  } | null>;
+  skillRemove(id: string): Promise<void>;
+  pluginSave(value: unknown): Promise<string>;
+  pluginEnable(id: string, enabled: boolean): Promise<unknown>;
+  pluginRemove(id: string): Promise<void>;
+  providerSave(
+    value: unknown,
+  ): Promise<{ saved?: boolean; cancelled?: boolean }>;
+  providerTest(kind: string): Promise<{ toolsVerified: boolean; note: string }>;
+  providerSelect(kind: string): Promise<unknown>;
+  providerRemove(kind: string): Promise<void>;
   googleConfigure(): Promise<void>;
   googleSetup(): Promise<void>;
   googleManageAccess(): Promise<void>;
-  googleConnect(service:"gmail"|"calendar",write:boolean): Promise<void>;
+  googleConnect(service: "gmail" | "calendar", write: boolean): Promise<void>;
   googleCancel(): Promise<void>;
-  googleDisconnect(service:"gmail"|"calendar"): Promise<void>;
-  configureReleaseBuildState():Promise<unknown>;
-  buildRelease():Promise<unknown>;
-  openReleaseLog():Promise<unknown>;
+  googleDisconnect(service: "gmail" | "calendar"): Promise<void>;
+  configureReleaseBuildState(): Promise<unknown>;
+  buildRelease(): Promise<unknown>;
+  openReleaseLog(): Promise<unknown>;
   configureGitHubMaintenance(): Promise<unknown>;
   removeGitHubMaintenance(): Promise<unknown>;
   rendererReady?(): Promise<unknown>;
-  maintenanceReview(id:string): Promise<any>;
-  maintenanceMerge(id:string,digest:string): Promise<unknown>;
+  maintenanceReview(id: string): Promise<any>;
+  maintenanceMerge(id: string, digest: string): Promise<unknown>;
   checkForUpdates(): Promise<unknown>;
   installUpdate(): Promise<unknown>;
   monitorControl(id: string, action: "pause" | "remove"): Promise<unknown>;

@@ -1,3 +1,47 @@
+JARVIS 0.8.0 — configurable intelligence and controlled app interaction
+
+- Add opt-in Autopilot for trusted routine actions; retain exact review for consequential effects.
+- Bind automatic navigation to exact operator-requested URLs, not retrieved or model-invented addresses.
+- Keep conditional requests behind review, revoke old destinations on corrections, and redact response-stream failures.
+- Add OpenAI-compatible, Ollama, Anthropic and Gemini task adapters alongside Codex.
+- Verify structured tool calling and optional vision separately before granting those capabilities.
+- Add scoped text skills and approval-gated custom MCP HTTP plugins.
+- Separate embedded, built-in and external plugins; manage Gmail and Calendar independently in Plugins.
+- Add a Browser workspace beside Voice and Chats, with up to 16 tabs and a separate persistent login session.
+- Bind browser actions to exact tabs and page snapshots; support manual takeover and reviewed handover.
+- Keep credential links and newly sensitive pages manual, with final page checks inside input dispatch.
+- Replace the settings accordion stack with searchable sidebar pages and narrow-screen navigation.
+- Extend macOS accessibility controls to ordinary apps and add reviewed window-image clicks.
+- Invalidate stale captures on Stop/correction; keep images out of local persistent history.
+- Preserve the Arc event-posting preflight and bounded sender drain from the retained 0.7.4 repair.
+
+Development candidate only: real installed Arc delivery and cross-app/visual acceptance
+remain required. Protocol fixtures do not establish real provider compatibility.
+No universal macOS app guarantee or unattended external-message permission is claimed.
+Task-provider choice does not change voice API billing. Existing Android Play Protect
+classification remains unresolved; public/APK publication stays held.
+See docs/ASSISTANT-SETUP.md for supported scope, data handling and limitations.
+
+--- Previous candidate ---
+
+JARVIS 0.7.4 — check click permission and preserve the event sender
+
+- Check macOS event-posting access before queueing either mouse event.
+- Refuse unavailable access without sending input or requesting permissions automatically.
+- Keep the short-lived native sender alive for 500 milliseconds after one down/up pair.
+- Expose event-posting access separately from Accessibility in native permission diagnostics.
+- Preserve exact approval, complete page/context guards, hit testing and no automatic retries.
+
+The 0.7.3 installed test verified both fields and their live Draft updates, but
+Preview did not take effect. WindowServer rejected both events in the same
+millisecond the helper exited. A sender-lifetime race is a hypothesis, not a
+confirmed cause. This fix requires a new installed acceptance test; neither
+permission preflight nor event queueing establishes successful delivery.
+No real submission or public/APK release clearance is claimed. Play Protect
+remains unresolved.
+
+--- Previous release ---
+
 JARVIS 0.7.3 — verify delayed input and click accessible browser controls
 
 - Send text once, then wait briefly for native value readback; verify page input effects separately.
@@ -97,3 +141,9 @@ approval; configuration alone does not publish a release.
 The current Mac build uses a local certificate, not Apple notarization. Android updates use
 normal Android installation approval. Five moderate development-packaging advisories
 remain under review; this is an experimental test release.
+
+0.8.0 candidate additions (not installed): opt-in specialist subagents with
+bounded read-only context, concurrent analysis/planning/review, durable findings
+and owner cancellation in Jobs. Workers use the selected task provider/model;
+all actions and approvals remain with the parent. Additional inference usage
+applies. No automatic worker restart or side-effect replay.

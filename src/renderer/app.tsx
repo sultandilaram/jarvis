@@ -21,25 +21,34 @@ import {
   Bell,
   MessageSquare,
   Loader2,
+  Globe,
 } from "lucide-react";
 import type { Approval, Snapshot, Settings, VoiceEvent } from "../shared/types";
 import { Voice, type VoiceState } from "./voice";
-import { GoogleSettings } from "./google-settings";
+import { BrowserPane } from "./browser-pane";
 import { MaintenanceSettings } from "./maintenance-settings";
 import { UpdateSettings } from "./update-settings";
 import { JobsPanel } from "./jobs";
 import { WatchSettings } from "./watch-settings";
 import { RemoteSettings } from "./remote-settings";
 import { HudCore } from "./hud";
-import { ActionPreview } from "./action-preview";
 import "./style.css";
 import "./voice-layout.css";
+import { SettingsMenu, SettingsPage } from "./settings-menu";
+import { ProviderSettings } from "./provider-settings";
+import { SkillSettings, PluginSettings } from "./extension-settings";
+import { ActionPreview } from "./action-preview";
 function App() {
   const [state, setState] = useState<Snapshot>();
   const [text, setText] = useState("");
   const [error, setError] = useState("");
-  const [view, setView] = useState<"voice" | "chats">("voice");
+  const [view, setView] = useState<"voice" | "chats" | "browser">("voice");
   const [panelOpen, setPanelOpen] = useState(false);
+  async function goView(next:"voice"|"chats"|"browser"){await window.jarvis.browserSurface?.(false);setView(next);}
+  async function openSettings(){await window.jarvis.browserSurface?.(false);setSettingsOpen(true);}
+  async function openPluginBrowser(){await window.jarvis.browserSurface?.(false);setSettingsOpen(false);setView("browser");}
+  useEffect(()=>window.jarvis.onBrowserReveal?.(()=>void goView("browser")),[]);
+
   const [tab, setTab] = useState<"activity" | "history" | "memory">("activity");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [voiceState, setVoiceState] = useState<VoiceState>("off");
@@ -85,7 +94,7 @@ function App() {
         setError(
           "Wake detected, but an API key is required for the conversation.",
         );
-        setSettingsOpen(true);
+        void openSettings();
         void window.jarvis.voiceActivity(false);
         return;
       }
@@ -223,7 +232,7 @@ function App() {
       return;
     }
     if (!state.hasApiKey) {
-      setSettingsOpen(true);
+      void openSettings();
       setAccess(
         "Voice needs a project API key. Text and Codex remain available.",
       );
@@ -235,7 +244,8 @@ function App() {
   const panelVisible = panelOpen || needsReview;
   const panelTab = tab;
   const liveVoice = !["off", "error"].includes(voiceState);
-  const openPanel = (next: typeof tab) => {
+  const openPanel = async (next: typeof tab) => {
+    await window.jarvis.browserSurface?.(false);
     setTab(next);
     setPanelOpen(!panelOpen || tab !== next);
   };
@@ -274,7 +284,7 @@ function App() {
           title="Voice"
           aria-label="Voice"
           aria-pressed={view === "voice"}
-          onClick={() => setView("voice")}
+          onClick={() => void goView("voice")}
         >
           <AudioLines size={20} />
         </button>
@@ -283,10 +293,11 @@ function App() {
           title="Chats"
           aria-label="Chats"
           aria-pressed={view === "chats"}
-          onClick={() => setView("chats")}
+          onClick={() => void goView("chats")}
         >
           <MessageSquare size={20} />
         </button>
+        <button className={view==="browser"?"rail-button selected":"rail-button"} title="Browser" aria-label="Browser" aria-pressed={view==="browser"} onClick={()=>void goView("browser")}><Globe size={20}/></button>
         <span className="rail-separator" />
         <button
           className={
@@ -332,7 +343,7 @@ function App() {
             className="rail-button"
             title="Settings"
             aria-label="Settings"
-            onClick={() => setSettingsOpen(true)}
+            onClick={() => void openSettings()}
           >
             <SettingsIcon size={20} />
           </button>
@@ -343,7 +354,7 @@ function App() {
               className="rail-button"
               title="Unacknowledged updates"
               aria-label="Updates"
-              onClick={() => setSettingsOpen(true)}
+              onClick={() => void openSettings()}
             >
               <Bell size={20} />
             </button>
@@ -366,15 +377,10 @@ function App() {
               )
                 return;
               event.preventDefault();
-              const next =
-                event.key === "Home"
-                  ? "voice"
-                  : event.key === "End"
-                    ? "chats"
-                    : view === "voice"
-                      ? "chats"
-                      : "voice";
-              setView(next);
+              const views=["voice","chats","browser"] as const;
+              const index=views.indexOf(view);
+              const next=views[event.key==="Home"?0:event.key==="End"?2:(index+(event.key==="ArrowRight"?1:2))%3];
+              void goView(next);
               event.currentTarget
                 .querySelector<HTMLButtonElement>(`#tab-${next}`)
                 ?.focus();
@@ -386,7 +392,7 @@ function App() {
               aria-selected={view === "voice"}
               aria-controls="voice-view"
               tabIndex={view === "voice" ? 0 : -1}
-              onClick={() => setView("voice")}
+              onClick={() => void goView("voice")}
             >
               <AudioLines size={16} /> Voice
             </button>
@@ -396,10 +402,11 @@ function App() {
               aria-selected={view === "chats"}
               aria-controls="chats-view"
               tabIndex={view === "chats" ? 0 : -1}
-              onClick={() => setView("chats")}
+              onClick={() => void goView("chats")}
             >
               <MessageSquare size={16} /> Chats
             </button>
+            <button id="tab-browser" role="tab" aria-selected={view==="browser"} aria-controls="browser-view" tabIndex={view==="browser"?0:-1} onClick={()=>void goView("browser")}><Globe size={16}/>Browser</button>
           </div>
           <div className="header-actions">
             <span className="local" role="status">
@@ -455,7 +462,7 @@ function App() {
             )}
           </div>
         )}
-        {view === "voice" ? (
+        {view === "browser" ? <BrowserPane state={state.browser} visible={!settingsOpen&&!needsReview} layoutKey={panelVisible}/> : view === "voice" ? (
           <section
             id="voice-view"
             className={`voice-view ${state.status === "error" || voiceState === "error" ? "is-fault" : ""}`}
@@ -843,6 +850,7 @@ function App() {
             <div className="history-list">
               <JobsPanel
                 jobs={state.jobs}
+                subagents={state.subagents}
                 enqueue={(input) =>
                   window.jarvis.jobEnqueue(
                     input.goal,
@@ -865,7 +873,7 @@ function App() {
                       }
                       onClick={() => {
                         setSelected(t.id);
-                        setView("chats");
+                        void goView("chats");
                       }}
                     >
                       <span className={`task-dot ${t.status}`} />
@@ -887,7 +895,7 @@ function App() {
                 className="subtle"
                 onClick={() => {
                   setSelected(null);
-                  setView("chats");
+                  void goView("chats");
                 }}
               >
                 Back to conversation
@@ -936,30 +944,40 @@ function App() {
       )}
       {settingsOpen && (
         <SettingsDialog onClose={() => setSettingsOpen(false)}>
-          <button
-            className="close icon-button"
-            aria-label="Close settings"
-            onClick={() => setSettingsOpen(false)}
-          >
-            <X size={20} />
-          </button>
-          <h2>Workspace settings</h2>
-          <GoogleSettings state={state.google} />
-          <MaintenanceSettings state={state} run={run} />
-          <UpdateSettings state={state} voiceBusy={voiceState !== "off"} run={run} />
-          <WatchSettings state={state} run={run} />
-          <p className="muted">
-            Codex uses your existing sign-in. Voice uses a project API key.
-            Eligible Pro and Business plans can claim included API credits in
-            ChatGPT billing settings.
-          </p>
-          <details className="settings-section" open>
+<SettingsMenu onClose={() => setSettingsOpen(false)} error={error}><SettingsPage id="general" title="General" description="Startup, availability and your working environment." keywords="login startup background awake battery workspace" icon={SettingsIcon}><div className="settings-status-row"><span>Assistant</span><span>JARVIS · this Mac</span></div><h3>Startup and availability</h3><label className="toggle">
+              <input
+                type="checkbox"
+                checked={state.settings.startAtLogin}
+                onChange={(e) => patch({ startAtLogin: e.target.checked })}
+              />
+              <span>
+                Start JARVIS at login
+                <small>
+                  Opens in the background. macOS registration:{" "}
+                  {state.background?.login.status || "unknown"}.
+                </small>
+              </span>
+            </label><label className="toggle">
+              <input
+                type="checkbox"
+                checked={!!state.settings.keepAvailable}
+                onChange={(e) => patch({ keepAvailable: e.target.checked })}
+              />
+              <span>
+                Keep JARVIS available while plugged in
+                <small>
+                  Prevents idle system sleep while the app runs; the display may
+                  turn off. Releases on battery. Lid closure, manual sleep and
+                  shutdown can still interrupt JARVIS.
+                </small>
+              </span>
+            </label><p className="muted small">Closing the window keeps JARVIS available from the menu bar. Your Mac must remain awake, signed in and online for remote tasks.</p><div className="workspace-path">Workspace<code>{state.workspace}</code></div></SettingsPage><SettingsPage id="intelligence" title="Intelligence" description="Choose the model that reasons through your tasks." keywords="brain model provider codex openai compatible custom server ollama local claude anthropic gemini api key" icon={Brain}><ProviderSettings state={state} /></SettingsPage><SettingsPage id="voice" title="Voice" description="Speaking, listening and local standby." keywords="microphone speaker earphone audio wake hey jarvis british realtime gpt api key diagnostics" icon={AudioLines}><details className="settings-section" open>
             <summary>Voice and standby</summary>
             <div className="persona-card">
               <h3>Composed. Precise. Occasionally dry.</h3>
               <p>
                 Courteous British delivery, concise briefings and a little
-                understated wit. An original AI voice; actions still wait for
+                understated wit. An original AI voice; consequential actions still need
                 your approval.
               </p>
             </div>
@@ -982,20 +1000,7 @@ function App() {
                 Cedar for the cinematic profile.
               </small>
             </label>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={state.settings.startAtLogin}
-                onChange={(e) => patch({ startAtLogin: e.target.checked })}
-              />
-              <span>
-                Start JARVIS at login
-                <small>
-                  Opens in the background. macOS registration:{" "}
-                  {state.background?.login.status || "unknown"}.
-                </small>
-              </span>
-            </label>
+            
             <label className="toggle">
               <input
                 type="checkbox"
@@ -1011,21 +1016,7 @@ function App() {
                 </small>
               </span>
             </label>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={!!state.settings.keepAvailable}
-                onChange={(e) => patch({ keepAvailable: e.target.checked })}
-              />
-              <span>
-                Keep JARVIS available while plugged in
-                <small>
-                  Prevents idle system sleep while the app runs; the display may
-                  turn off. Releases on battery. Lid closure, manual sleep and
-                  shutdown can still interrupt JARVIS.
-                </small>
-              </span>
-            </label>
+            
             <label>
               Close voice after silence
               <select
@@ -1047,12 +1038,7 @@ function App() {
               closes the API session, even if a backend task is still running.
               The menu-bar Quit command stops local listening too.
             </p>
-          </details>
-          <details className="settings-section">
-            <summary>Phone connection and alerts</summary>
-            <RemoteSettings state={state.remote} run={run} />
-          </details>
-          <details className="settings-section">
+          </details><details className="settings-section" open>
             <summary>Voice API access</summary>
             <label>
               OpenAI project API key
@@ -1129,47 +1115,7 @@ function App() {
               Keychain. Never sent to Codex or stored in history.
             </small>
             {access && <p className="access-result">{access}</p>}
-          </details>
-          <details className="settings-section">
-            <summary>Desktop permissions and folders</summary>{" "}
-            <h3>Desktop control</h3>
-            <p>
-              Accessibility:{" "}
-              {state?.desktop?.accessibility
-                ? "Enabled"
-                : "Requires macOS permission"}
-            </p>
-            <p>
-              App launches, browser interactions, and file changes need one-time
-              approval. Other apps require Accessibility permission. Passwords
-              and payment fields stay manual.
-            </p>
-            <button
-              className="subtle"
-              onClick={() =>
-                void run(async () => {
-                  await window.jarvis.desktopPermissions();
-                })
-              }
-            >
-              Open Accessibility settings
-            </button>
-            <p>Granted folders (ask JARVIS to grant another folder):</p>
-            {state?.desktop?.roots.map((root) => (
-              <div key={root}>
-                <code>{root}</code>{" "}
-                <button
-                  className="subtle"
-                  onClick={() =>
-                    void run(() => window.jarvis.revokeFolder(root))
-                  }
-                >
-                  Revoke
-                </button>
-              </div>
-            ))}
-          </details>
-          <details className="settings-section">
+          </details><details className="settings-section" open>
             <summary>Advanced voice and task settings</summary>
             <div className="settings-grid">
               <label>
@@ -1199,7 +1145,7 @@ function App() {
             </div>
             <p className="muted small">
               Starting voice sends microphone audio to OpenAI and consumes API
-              credits. “Stop” ends the call and interrupts Codex. To approve a
+              credits. “Stop” ends the call and interrupts the task engine. To approve a
               pending action, say the exact phrase on its card, ending with
               “confirm”. Voice sessions close after ten minutes; reconnect to
               continue. Transcripts and diagnostics are saved locally; raw
@@ -1217,20 +1163,7 @@ function App() {
                 <p>No voice session in this run.</p>
               )}
             </details>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={state.settings.routineChecks}
-                onChange={(e) => patch({ routineChecks: e.target.checked })}
-              />
-              <span>
-                Allow routine read-only checks
-                <small>
-                  Use Codex on-request approvals within the read-only sandbox.
-                  Applies on the next task.
-                </small>
-              </span>
-            </label>
+            
             <label className="toggle">
               <input
                 type="checkbox"
@@ -1247,16 +1180,70 @@ function App() {
             <div className="workspace-path">
               Workspace<code>{state.workspace}</code>
               <small>
-                Broad desktop control is not enabled. Wake and login controls
-                are above.
+                File and project boundaries still apply. Startup settings are
+                under General; wake listening is under Voice.
               </small>
             </div>
-          </details>
-          {error && (
-            <div className="error" role="alert">
-              {error}
-            </div>
-          )}
+          </details></SettingsPage><SettingsPage id="autonomy" title="Autonomy" description="Set when JARVIS works independently and when it asks." keywords="approval critical autopilot routine watch monitor notification escalation subagents delegate parallel specialist" icon={Shield}><section><h3>Approval policy</h3><p>Autopilot handles trusted routine work. Critical and unclassified actions still stop for exact review.</p><label>Approval mode<select value={state.settings.approvalMode || "always"} onChange={e => patch({approvalMode:e.target.value as "always" | "critical"})}><option value="always">Ask every time</option><option value="critical">Autopilot · review critical actions</option></select></label><p className="muted small">Automatic: known ordinary apps, exact public HTTPS addresses in explicit opening requests, new text drafts in JARVIS’s Workspace, bounded project imports and offline commands in isolated project jobs.</p><p className="muted small">Always reviewed: sending, opening documents in external apps, form interactions, file replacement or deletion, network commands, account changes, unknown plugin tools, persistent watchers, phone calls and release publication/builds. Generic clicks and typing remain reviewed because their effects may be consequential.</p><p className="muted small">Changing modes cancels pending actions. Stop still cancels future work; it does not undo completed effects.</p></section><label className="toggle">
+              <input
+                type="checkbox"
+                checked={state.settings.routineChecks}
+                onChange={(e) => patch({ routineChecks: e.target.checked })}
+              />
+              <span>
+                Allow routine read-only checks
+                <small>
+                  Use Codex on-request approvals within the read-only sandbox.
+                  Applies on the next task.
+                </small>
+              </span>
+            </label><section><h3>Specialist subagents</h3><label className="toggle"><input type="checkbox" checked={Boolean(state.settings.subagentsEnabled)} onChange={e=>patch({subagentsEnabled:e.target.checked})}/><span>Allow parallel specialist workers<small>Use the selected task provider and model for analysis, planning and review. Additional inference usage applies.</small></span></label><p className="muted small">Up to 2 workers at once and 6 per job. Each worker gets 5 minutes, 20 tool calls and a 40,000 reported-token limit. An in-flight response can exceed the token limit.</p><p className="muted small">Workers receive only selected context and project-file snapshots. They cannot change files, use apps or accounts, create more workers, or approve actions. See their progress and findings in Jobs. Stop, corrections and disabling this setting cancel active workers.</p></section><WatchSettings state={state} run={run} /></SettingsPage><SettingsPage id="skills" title="Skills" description="Teach your assistant how you like work done." keywords="instructions procedures training preference import skill markdown" icon={FileText}><SkillSettings state={state} /></SettingsPage><SettingsPage id="plugins" title="Plugins" description="Connect tools with explicit access and inspectable actions." keywords="mcp server extension tools token endpoint plugin browser embedded built-in google gmail calendar email oauth account connection sign in" icon={Command}><PluginSettings state={state} onOpenBrowser={()=>void openPluginBrowser()} /></SettingsPage><SettingsPage id="devices" title="Devices" description="Pair your phone and manage remote conversations." keywords="android phone qr pair mobile remote cloudflare tunnel firebase push incoming call alerts" icon={Mic}><details className="settings-section" open>
+            <summary>Phone connection and alerts</summary>
+            <RemoteSettings state={state.remote} run={run} />
+          </details></SettingsPage><SettingsPage id="privacy" title="Privacy & access" description="Control what JARVIS can read and operate." keywords="permissions accessibility desktop folders roots files revoke macos" icon={Shield}><details className="settings-section" open>
+            <summary>Desktop permissions and folders</summary>{" "}
+            <h3>Desktop control</h3>
+            <p>
+              Accessibility:{" "}
+              {state?.desktop?.accessibility
+                ? "Enabled"
+                : "Requires macOS permission"}
+            </p>
+            <p>Pointer event access: {state.desktop?.eventPosting === undefined ? "Not checked" : state.desktop.eventPosting ? "Available" : "Unavailable — clicks will be refused"}.</p>
+            <p>Screen capture: {state.desktop?.screenCapture === undefined ? "Not checked" : state.desktop.screenCapture ? "Available" : "Requires macOS permission"}. Visual fallback uses only the requested app window and refuses recognized sensitive input windows.</p>
+            <button className="subtle" onClick={()=>void run(()=>window.jarvis.desktopCheckAccess())}>Check desktop access</button>
+            <button className="subtle" onClick={()=>void run(()=>window.jarvis.desktopScreenPermissions())}>Open Screen Recording settings</button>
+            <p className="muted small">Window images go to your selected task provider when visual tools are used. JARVIS omits inline images from its tool-history records; providers, including Codex, may keep their own task history. Visual clicks always need a marked-image review.</p>
+            <p>
+              Approval rules depend on your Autonomy setting. Unclassified and
+              consequential actions still require review. Other apps need Accessibility. Passwords
+              and payment fields stay manual.
+            </p>
+            <button
+              className="subtle"
+              onClick={() =>
+                void run(async () => {
+                  await window.jarvis.desktopPermissions();
+                })
+              }
+            >
+              Open Accessibility settings
+            </button>
+            <p>Granted folders (ask JARVIS to grant another folder):</p>
+            {state?.desktop?.roots.map((root) => (
+              <div key={root}>
+                <code>{root}</code>{" "}
+                <button
+                  className="subtle"
+                  onClick={() =>
+                    void run(() => window.jarvis.revokeFolder(root))
+                  }
+                >
+                  Revoke
+                </button>
+              </div>
+            ))}
+          </details></SettingsPage><SettingsPage id="updates" title="Updates" description="Verified app releases and installation status." keywords="version release github download dmg apk update" icon={History}><UpdateSettings state={state} voiceBusy={voiceState !== "off"} run={run} /></SettingsPage><SettingsPage id="developer" title="Developer" description="Source maintenance, review and local release builds." keywords="repo source self improvement github signing private cache build developer pr merge" icon={Command}><MaintenanceSettings state={state} run={run} /></SettingsPage></SettingsMenu>
         </SettingsDialog>
       )}
     </div>

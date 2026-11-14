@@ -11,6 +11,13 @@ test("native desktop controller compiles and its real field policy protects sens
     const helper = join(dir, "desktop-policy-test");
     const compiled = spawnSync("/usr/bin/xcrun", ["swiftc", "-D", "JARVIS_TESTING", "-module-cache-path", join(dir, "modules"), resolve("native/DesktopControl.swift"), "-o", helper], { encoding: "utf8", timeout: 100000 });
     assert.equal(compiled.status, 0, compiled.stderr || String(compiled.error));
+    // The real dispatch orchestration must deny before input and keep its sender
+    // alive after exactly one down/up pair. No real input or permission prompt.
+    for (const allowed of [false, true]) {
+      const result = spawnSync(helper, [], { input: JSON.stringify({ action: "test.pointerDispatch", allowed }), encoding: "utf8", timeout: 5000 });
+      assert.equal(result.status, 0, result.stderr);
+      assert.deepEqual(JSON.parse(result.stdout), { sequence: allowed ? ["preflight", "down", "up", "drain"] : ["preflight"], blocked: !allowed });
+    }
     const cases: Array<[Record<string, string>, boolean]> = [
       [{ role: "AXTextField", label: "Display name" }, false],
       [{ role: "AXTextArea", label: "Test message" }, false],
@@ -36,12 +43,33 @@ test("native desktop controller compiles and its real field policy protects sens
       assert.deepEqual(JSON.parse(result.stdout), { value: expected, truncated });
     }
     const frame = { x: 100, y: 200, width: 120, height: 40 };
+    const image={action:"test.visualPolicy",frame,width:120,height:40,x:50,y:20};
+    for(const [patch,allowed] of [[{},true],[{x:0,y:0},true],[{x:-1},false],[{x:120},false],[{y:40},false],[{width:0},false],[{width:3001},false],[{height:2001},false],[{width:3000,height:2000},false],[{frame:{...frame,width:0}},false]] as const){
+      const r=spawnSync(helper,[],{input:JSON.stringify({...image,...patch}),encoding:"utf8",timeout:5000});assert.equal(r.status,0,r.stderr);assert.equal(JSON.parse(r.stdout).allowed,allowed);
+    }
+    const visualContext={pageContentAvailable:true,truncated:false,elements:[{secure:false}]};
+    for(const [patch,allowed] of [[{},true],[{truncated:true},false],[{pageContentAvailable:false},false],[{elements:[]},false],[{elements:[{secure:true}]},false]] as const){
+      const r=spawnSync(helper,[],{input:JSON.stringify({action:"test.visualContext",snapshot:{...visualContext,...patch}}),encoding:"utf8",timeout:5000});assert.equal(r.status,0,r.stderr);assert.equal(JSON.parse(r.stdout).allowed,allowed);
+    }
     for (const [role, actions, allowed] of [["AXStaticText", [], true], ["AXImage", [], true], ["AXGroup", [], true], ["AXHeading", [], true], ["AXLink", [], false], ["AXButton", [], false], ["AXTextField", [], false], ["AXCheckBox", [], false], ["AXUnknown", [], false], ["AXGroup", ["AXPress"], false], ["AXImage", ["AXPress"], false]] as const) {
       const result = spawnSync(helper, [], { input: JSON.stringify({ action: "test.hitPolicy", role, actions }), encoding: "utf8", timeout: 5000 });
       assert.equal(result.status, 0, result.stderr);
       assert.equal(JSON.parse(result.stdout).allowed, allowed, role);
     }
     const context = { documentURL: "https://example.com/form", windowIdentifier: "window-1", window: "Form", pid: 123, pageContentAvailable: true, truncated: false, elements: [{ id: "0.1", role: "AXTextField", value: "approved" }] };
+    const nativeContext = { ...context, documentURL: "", windowIdentifier: "", windowKind: "native" };
+    for (const [expected, actual, browser, pointer, allowed] of [
+      [nativeContext, nativeContext, false, false, true],
+      [nativeContext, nativeContext, false, true, false],
+      [nativeContext, { ...nativeContext, window: "Other conversation" }, false, false, false],
+      [nativeContext, { ...nativeContext, truncated: true }, false, false, false],
+      [{ ...nativeContext, windowIdentifier: "stable-window" }, { ...nativeContext, windowIdentifier: "stable-window" }, false, true, true],
+      [{ ...nativeContext, windowKind: "web", documentURL: "chrome://passwords" }, { ...nativeContext, windowKind: "web", documentURL: "chrome://passwords" }, false, false, false],
+    ] as const) {
+      const result = spawnSync(helper, [], { input: JSON.stringify({ action: "test.controlContextPolicy", expected, actual, browser, pointer }), encoding: "utf8", timeout: 5000 });
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(JSON.parse(result.stdout).allowed, allowed);
+    }
     for (const [patch, allowed] of [[{}, true], [{ elements: [{ id: "0.1", role: "AXTextField", value: "changed" }] }, false], [{ window: "Other" }, false], [{ pid: 456 }, false], [{ windowIdentifier: "window-2" }, false], [{ documentURL: "https://example.com/other" }, false], [{ truncated: true }, false], [{ pageContentAvailable: false }, false]] as const) {
       const result = spawnSync(helper, [], { input: JSON.stringify({ action: "test.contextPolicy", expected: context, actual: { ...context, ...patch } }), encoding: "utf8", timeout: 5000 });
       assert.equal(result.status, 0, result.stderr);

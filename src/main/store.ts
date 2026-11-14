@@ -129,6 +129,8 @@ export class Store {
   }
   settings(): Settings {
     return {
+      approvalMode: "always",
+      subagentsEnabled: false,
       keepAvailable: false,
       routineChecks: false,
       speakReplies: false,

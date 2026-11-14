@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
+import { Crosshair } from "lucide-react";
+import { withoutInlineImages } from "../shared/image-history";
 import "./action-preview.css";
 
 const labels: Record<string, string> = {
@@ -21,7 +23,7 @@ const labels: Record<string, string> = {
 };
 function label(key: string) {
   return (
-    labels[key] ||
+    (Object.hasOwn(labels, key) ? labels[key] : "") ||
     key
       .replace(/([a-z])([A-Z])/g, "$1 $2")
       .replace(/^./, (c) => c.toUpperCase())
@@ -57,6 +59,7 @@ function Value({ value }: { value: unknown }) {
   return <pre>{String(value)}</pre>;
 }
 export function ActionPreview({ params }: { params: Record<string, any> }) {
+  const [zoom, setZoom] = useState(false);
   const preview =
     params.preview && typeof params.preview === "object" ? params.preview : {};
   const extra = Object.fromEntries(
@@ -72,6 +75,16 @@ export function ActionPreview({ params }: { params: Record<string, any> }) {
         ].includes(k),
     ),
   );
+  const hasImage =
+    typeof preview.imageUrl === "string" &&
+    /^data:image\/(?:jpeg|png);base64,[A-Za-z0-9+/=]+$/.test(
+      preview.imageUrl,
+    ) &&
+    preview.imageUrl.length < 1400000 &&
+    Number.isFinite(preview.imageWidth) &&
+    preview.imageWidth > 0 &&
+    Number.isFinite(preview.imageHeight) &&
+    preview.imageHeight > 0;
   return (
     <div className="action-preview">
       {params.action && (
@@ -94,19 +107,73 @@ export function ActionPreview({ params }: { params: Record<string, any> }) {
         </p>
       )}
       {params.reason && <p className="preview-reason">{params.reason}</p>}
-      <dl>
-        {Object.entries({ ...extra, ...preview }).map(([key, value]) => (
-          <div className="preview-field" key={key}>
-            <dt>{label(key)}</dt>
-            <dd>
-              <Value value={value} />
-            </dd>
+      {hasImage && (
+        <figure className="visual-approval">
+          <figcaption>Review the marked point</figcaption>
+          <p>
+            Check the conversation, content and intended effect before
+            approving.
+          </p>
+          <button
+            type="button"
+            className="subtle"
+            onClick={() => setZoom(!zoom)}
+          >
+            {zoom ? "Fit image" : "Inspect full-size image"}
+          </button>
+          <div className="visual-approval-scroll">
+            <div
+              className={"visual-approval-image" + (zoom ? " is-zoomed" : "")}
+              style={zoom ? { width: preview.imageWidth } : undefined}
+            >
+              <img
+                src={preview.imageUrl}
+                alt={
+                  "Captured " +
+                  (preview.window || "app") +
+                  " window for this exact click"
+                }
+              />
+              {preview.point && (
+                <span
+                  className="visual-approval-point"
+                  style={{
+                    left: (100 * preview.point.x) / preview.imageWidth + "%",
+                    top: (100 * preview.point.y) / preview.imageHeight + "%",
+                  }}
+                  aria-label="Proposed click point"
+                >
+                  <Crosshair size={28} strokeWidth={2} />
+                </span>
+              )}
+            </div>
           </div>
-        ))}
+          {zoom && (
+            <p>Scroll within the image to inspect it at its original size.</p>
+          )}
+        </figure>
+      )}
+      {params.action === "desktop.click_image" && !hasImage && (
+        <p role="alert">
+          The window image is unavailable in this client. Review on the Mac or
+          update this client before approving.
+        </p>
+      )}
+      <dl>
+        {Object.entries({ ...extra, ...preview })
+          .filter(([key]) => key !== "imageUrl")
+          .map(([key, value]) => (
+            <div className="preview-field" key={key}>
+              <dt>{label(key)}</dt>
+              <dd>
+                <Value value={value} />
+              </dd>
+            </div>
+          ))}
       </dl>
       <details className="technical-preview">
         <summary>Technical details</summary>
-        <pre>{JSON.stringify(params, null, 2)}</pre>
+        <pre>{JSON.stringify(withoutInlineImages(params), null, 2)}</pre>
       </details>
     </div>
   );

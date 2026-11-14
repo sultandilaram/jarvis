@@ -97,3 +97,50 @@
 .preview-list > li {
   padding-block-end: 12px;
 }
+.visual-approval {
+  margin: 18px 0;
+}
+.visual-approval figcaption {
+  font-weight: 600;
+  color: #e4f0f5;
+  margin-bottom: 6px;
+}
+.visual-approval p {
+  font-size: 13px;
+  color: #b4cbd6;
+  line-height: 1.5;
+}
+.visual-approval-scroll {
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid #617984;
+  border-radius: 6px;
+  background: #0a1116;
+  margin-top: 10px;
+}
+.visual-approval-image {
+  position: relative;
+  min-width: 100%;
+  line-height: 0;
+}
+.visual-approval-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: none;
+}
+.visual-approval-point {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  color: #ff5371;
+  filter: drop-shadow(0 1px 2px #000);
+  pointer-events: none;
+}
+.visual-approval button:focus-visible {
+  outline: 2px solid #78d8ed;
+  outline-offset: 3px;
+}
+
+.visual-approval-image.is-zoomed {
+  min-width: 0;
+}

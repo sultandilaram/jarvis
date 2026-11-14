@@ -5,6 +5,7 @@ import { realpathSync } from 'node:fs';
 import { join, dirname, extname } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import type { PendingPull } from './github-maintenance.ts';
+import type { ProjectAuthority } from './orchestrator.ts';
 import type { Store } from './store.ts';
 import type { JobManager, Job } from './jobs.ts';
 import type { ActionPlan } from './desktop/broker.ts';
@@ -52,6 +53,14 @@ export class Maintenance {
  proposals():Proposal[]{return this.store.get<Proposal[]>('maintenanceProposals',[]);}
  save(p:Proposal){const all=this.proposals().filter(x=>x.id!==p.id);all.unshift(p);this.store.set('maintenanceProposals',all.slice(0,100));this.changed();}
  get(id:unknown){const p=this.proposals().find(p=>p.id===id);if(!p)throw Error('Maintenance proposal not found.');return p;}
+ projectAuthority(job:{id:string;profile:string;source?:string}):ProjectAuthority|undefined {
+  const current=this.jobs.current();
+  if(job.profile!=='project'||current?.id!==job.id||current.profile!=='project'||current.source!==job.source)return;
+  for(const p of this.proposals()){
+   if(p.jobId===job.id&&p.state==='draft'&&job.source==='maintenance:'+p.id)return {proposalId:p.id,role:'proposer',evidenceJobIds:[]};
+   if(p.reviewJobId===job.id&&p.state==='reviewing'&&job.source==='maintenance-review:'+p.id)return {proposalId:p.id,role:'reviewer',evidenceJobIds:[p.jobId]};
+  }
+ }
  summary(){return {repository:'sultandilaram/jarvis',releaseBuilder:this.builderState?.(),mode:this.githubReady?.()?'github' as const:'local' as const,githubConfigured:!!this.githubReady?.(),pulls:this.githubPulls?.()||[],proposals:this.proposals().map(({changes,receipts,...p})=>({...p,changes:changes?.map(c=>({path:c.path,sensitive:sensitivePath(c.path)})),checks:receipts||[]}))};}
  git(args:string[]){return execFileSync('/usr/bin/git',['-c','core.hooksPath=/dev/null','-c','commit.gpgSign=false','-c','user.name=JARVIS Local Maintainer','-c','user.email=jarvis@localhost',...args],{cwd:this.root,encoding:'utf8',maxBuffer:8*1024*1024,env:{PATH:'/usr/bin:/bin',HOME:this.root,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null',GIT_TERMINAL_PROMPT:'0'},stdio:['ignore','pipe','pipe']}).trim();}
  ensure(){
@@ -122,7 +131,13 @@ export class Maintenance {
   return {state:p.state,commit:p.commit,localOnly:true,installed:false};
  }
  async plan(action:string,args:Record<string,unknown>):Promise<ActionPlan>{
-  if(action==='repo.status')return {title:'Inspect JARVIS maintenance',approval:false,preview:{},run:async()=>this.summary()};
+  if(action==='repo.status')return {title:'Inspect JARVIS maintenance',approval:false,preview:{},run:async()=>{
+   const current=this.jobs.current();
+   if(current?.profile!=='project')return this.summary();
+   const authority=this.projectAuthority(current);if(!authority)throw Error('No maintenance role for this project job.');
+   const p=this.get(authority.proposalId);
+   return {repository:'sultandilaram/jarvis',githubConfigured:!!this.githubReady?.(),role:authority.role,proposals:[{id:p.id,state:p.state,jobId:p.jobId,reviewJobId:p.reviewJobId,digest:p.digest,changes:p.changes?.map(c=>({path:c.path,sensitive:sensitivePath(c.path)})),checks:p.receipts||[],review:p.review}]};
+  }};
   if(action==='repo.start'){
    if(typeof args.text!=='string')throw Error('Provide the improvement goal in text.');const goal=args.text;
    return {title:'Prepare a JARVIS source improvement',approval:true,preview:{goal,repository:'sultandilaram/jarvis',effect:'Create an isolated coding job and a separate review job. Ordinary documentation changes may merge locally after verified checks. Sensitive changes require owner review. Does not alter the installed app or publish to GitHub.'},run:async()=>this.start(goal)};

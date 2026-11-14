@@ -5,7 +5,7 @@ import cp from "node:child_process";
 
 test("browser mutation planning refuses incomplete context before offering approval", async () => {
   // No Electron runtime or UI is started: only the real service planner is exercised.
-  const stub = "data:text/javascript," + encodeURIComponent("export const dialog={};export const shell={};export class BrowserWindow{};export const session={};");
+  const stub = "data:text/javascript," + encodeURIComponent("export const dialog={};export const shell={};export class BrowserWindow{};export class WebContentsView{};export const session={};");
   const hooks = registerHooks({ resolve(specifier, context, nextResolve) {
     return specifier === "electron" ? { url: stub, shortCircuit: true } : nextResolve(specifier, context);
   } });
@@ -42,7 +42,7 @@ test("browser mutation planning refuses incomplete context before offering appro
 });
 
 test("pointer fallback keeps exact approval, rejects changed bounds and ignores caller metadata overrides", async () => {
-  const stub = "data:text/javascript," + encodeURIComponent("export const dialog={};export const shell={};export class BrowserWindow{};export const session={};");
+  const stub = "data:text/javascript," + encodeURIComponent("export const dialog={};export const shell={};export class BrowserWindow{};export class WebContentsView{};export const session={};");
   const hooks = registerHooks({ resolve(specifier, context, nextResolve) {
     return specifier === "electron" ? { url: stub, shortCircuit: true } : nextResolve(specifier, context);
   } });

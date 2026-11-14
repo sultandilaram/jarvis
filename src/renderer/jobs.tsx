@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import type { SubagentRun } from "../main/delegation";
 import type { Job } from "../main/jobs";
 import type { Monitor } from "../main/monitors";
 import "./jobs.css";
@@ -9,12 +10,14 @@ type JobInput = {
 };
 export function JobsPanel({
   jobs = [],
+  subagents = [],
   enqueue,
   control,
   open,
   run,
 }: {
   jobs?: Job[];
+  subagents?: SubagentRun[];
   enqueue: (input: JobInput) => Promise<unknown>;
   control: (
     id: string,
@@ -45,6 +48,7 @@ export function JobsPanel({
     });
   return (
     <section className="jobs-panel" aria-label="Durable jobs">
+      <SubagentList items={subagents} run={run} />
       <details
         className="job-create"
         open={creating}
@@ -259,6 +263,112 @@ export function MonitorList({
           </div>
         </article>
       ))}
+    </section>
+  );
+}
+
+function SubagentList({
+  items,
+  run,
+}: {
+  items: SubagentRun[];
+  run: (fn: () => Promise<unknown>) => Promise<unknown>;
+}) {
+  const [expanded, setExpanded] = useState<Record<string, SubagentRun>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const act = (id: string, fn: () => Promise<unknown>) => {
+    setBusy(id);
+    void run(fn).finally(() => setBusy(null));
+  };
+  return (
+    <section className="subagent-list" aria-label="Specialist subagents">
+      <h3>Specialist subagents</h3>
+      <p className="job-help">
+        Parallel analysis, planning and review. Workers use selected context and
+        file snapshots; JARVIS handles actions and approvals.
+      </p>
+      {!items.length && (
+        <p className="job-help">
+          No workers yet. Enable subagents in Settings → Autonomy, then ask
+          JARVIS to delegate a task.
+        </p>
+      )}
+      {items.map((a) => {
+        const live = ["queued", "starting", "running"].includes(a.state);
+        const detail = expanded[a.id] || a;
+        return (
+          <article className="job-entry" key={a.id}>
+            <div className="job-state">
+              <strong>{a.state}</strong>
+              <span>{a.role}</span>
+            </div>
+            <h4>{a.label}</h4>
+            {a.progress && <p className="job-full-goal">{a.progress}</p>}
+            <p className="job-help">
+              {a.toolCalls}/20 tool calls · {a.reportedTokens.toLocaleString()}
+              /40,000 reported tokens · 5 minute limit
+            </p>
+            {a.error && (
+              <p className="job-error" role="status">
+                {a.error}
+              </p>
+            )}
+            <details>
+              <summary>Goal, shared files and findings</summary>
+              <p className="job-full-goal">{detail.goal}</p>
+              <p className="job-help">
+                {a.files.length
+                  ? `${a.files.length} immutable file snapshots shared`
+                  : "Context text only; no files shared"}
+              </p>
+              {a.files.map((f) => (
+                <p className="subagent-file" key={f.path}>
+                  <code>{f.path}</code>
+                  <small>SHA-256 {f.sha256}</small>
+                </p>
+              ))}
+              <p className="job-full-goal">
+                {detail.result || "No findings recorded yet."}
+              </p>
+              {a.assessment && (
+                <p className="job-help">
+                  JARVIS assessment: {a.assessment.decision} ·{" "}
+                  {a.assessment.notes}
+                </p>
+              )}
+              <p className="job-help">
+                Worker findings are untrusted input, never action approval or an
+                independent repository review.
+              </p>
+              <div className="job-actions">
+                <button
+                  disabled={busy === a.id}
+                  onClick={() =>
+                    act(a.id, async () => {
+                      const full = await window.jarvis.subagentRead(a.id);
+                      setExpanded((v) => ({ ...v, [a.id]: full }));
+                    })
+                  }
+                >
+                  Load full record
+                </button>
+              </div>
+            </details>
+            {live && (
+              <div className="job-actions">
+                <button
+                  disabled={busy === a.id}
+                  onClick={() =>
+                    act(a.id, () => window.jarvis.subagentCancel(a.id))
+                  }
+                >
+                  Cancel {a.label}
+                </button>
+              </div>
+            )}
+          </article>
+        );
+      })}
     </section>
   );
 }

@@ -23,6 +23,7 @@ type Secrets = {
 };
 export type GoogleState = {
   configured: boolean;
+  plugins?:{gmail:boolean;calendar:boolean};
   connecting?: GoogleService;
   error?: string;
   gmail?: { email: string; write: boolean };
@@ -126,6 +127,8 @@ function plainBody(part: any, depth = 0): string {
 export class GoogleAccounts {
   state: GoogleState;
   allowed: () => boolean = () => true;
+  enabled: (service:GoogleService) => boolean = () => true;
+  private requirePlugin(service:GoogleService){this.requireDesktop();if(!this.enabled(service))throw Error("Enable the "+(service==="gmail"?"Gmail":"Google Calendar")+" built-in plugin in Settings → Plugins first.");}
   private requireDesktop() {
     if (!this.allowed())
       throw Error(
@@ -151,7 +154,7 @@ export class GoogleAccounts {
     this.state = { ...initial, connecting: undefined };
   }
   snapshot(): GoogleState {
-    return structuredClone(this.state);
+    return {...structuredClone(this.state),plugins:{gmail:this.enabled("gmail"),calendar:this.enabled("calendar")}};
   }
   private publish(error?: string) {
     if (this.secrets) {
@@ -301,10 +304,12 @@ export class GoogleAccounts {
     this.publish();
   }
   private async account(service: GoogleService, write = false) {
+    this.requirePlugin(service);
     const c = (await this.load())[service];
+    this.requirePlugin(service);
     if (!c)
       throw Error(
-        `Connect ${service === "gmail" ? "Gmail" : "Google Calendar"} in desktop Settings → Email and calendar.`,
+        `Connect ${service === "gmail" ? "Gmail" : "Google Calendar"} in desktop Settings → Plugins.`,
       );
     if (write && !c.write)
       throw Error(
@@ -319,7 +324,7 @@ export class GoogleAccounts {
     signal: AbortSignal,
     body?: unknown,
   ) {
-    this.requireDesktop();
+    this.requirePlugin(service);
     const current = await this.account(service);
     if (current.generation !== c.generation)
       throw Error("Account changed; request a fresh action and approval.");
@@ -376,6 +381,8 @@ export class GoogleAccounts {
       service === "gmail"
         ? "https://gmail.googleapis.com/gmail/v1/users/me/"
         : "https://www.googleapis.com/calendar/v3/calendars/primary/";
+    this.requirePlugin(service);
+    signal.throwIfAborted();
     return googleJSON(
       this.request,
       base + path,

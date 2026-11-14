@@ -125,6 +125,7 @@ function App() {
     try {
       const s = await link.rpc("snapshot", {
         revision: snapshotRevision.current,
+        visualPreview: 1,
       });
       if (s.unchanged) return;
       snapshotRevision.current = s.revision;
@@ -169,7 +170,7 @@ function App() {
         await refresh();
       },
       approve: async (id, accept) => {
-        await link.rpc("approve", { id, accept });
+        await link.rpc("approve", { id, accept, visualPreview:1 });
         await refresh();
       },
       voiceConnect: async (sdp: string) => link.rpc("voice.connect", { sdp }),
@@ -865,6 +866,7 @@ function App() {
                             await link.rpc("approve", {
                               id: a.id,
                               accept: true,
+                              visualPreview: 1,
                             });
                             await refresh();
                           })
