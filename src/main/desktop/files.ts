@@ -16,8 +16,10 @@ import {
   basename,
   extname,
   sep,
+  isAbsolute,
 } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
+import { windowsLocalPath, windowsProtectedPath, windowsNoLinks } from "./windows-paths.ts";
 import type { ActionPlan } from "./broker.ts";
 export class FileAccess {
   constructor(
@@ -25,11 +27,15 @@ export class FileAccess {
     public trash: (path: string) => Promise<void>,
     public openDocument: (path: string) => Promise<string>,
     public internalWorkspace?: string,
+    public protectedLocations: string[] = [],
   ) {}
   async path(value: unknown, allowMissing = false) {
     if (typeof value !== "string" || !value || value.includes("\0"))
       throw new Error("An explicit file path is required.");
+    if(process.platform === "win32") windowsLocalPath(value);
     const path = resolve(value);
+    if(process.platform === "win32" && windowsProtectedPath(path,this.internalWorkspace))throw Error("Protected Windows paths are excluded.");
+    if(this.protectedLocations.some(root => {const p=relative(resolve(root),path);return p===""||(!isAbsolute(p)&&p!==".."&&!p.startsWith(".."+sep));}) && !(this.internalWorkspace && (path===resolve(this.internalWorkspace)||path.startsWith(resolve(this.internalWorkspace)+sep))))throw Error("JARVIS application and private data paths are excluded.");
     const protectedPart = path
       .split(sep)
       .some((p) =>
@@ -56,6 +62,7 @@ export class FileAccess {
       throw new Error(
         "Credential, application, and system paths are excluded from desktop file tools.",
       );
+    if(process.platform === "win32")await windowsNoLinks(path,allowMissing);
     let canonical: string;
     try {
       const stat = await lstat(path);
@@ -74,7 +81,8 @@ export class FileAccess {
         part !== "" &&
         !part.startsWith(".." + sep) &&
         part !== ".." &&
-        !part.startsWith(sep)
+        !part.startsWith(sep) &&
+        !isAbsolute(part)
       )
         allowed = true;
       if (part === "" && canonical === base) allowed = true;

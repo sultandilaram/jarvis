@@ -9,13 +9,13 @@ const output = join(root, '.jarvis', 'public-source');
 const roots = ['src', 'native', 'scripts', 'tests', 'mobile/web', 'mobile/android/app/src', '.github', 'docs'];
 const singles = ['package.json', 'package-lock.json', 'tsconfig.json', '.gitignore', 'LICENSE', 'NOTICE', 'SECURITY.md', 'SELF-MANAGEMENT.md', 'mobile/tsconfig.json', 'mobile/android/build.gradle', 'mobile/android/settings.gradle', 'mobile/android/gradle.properties', 'mobile/android/app/build.gradle'];
 const brand = ['jarvis-icon.png', 'jarvis-64.png', 'jarvisTrayTemplate.png', 'jarvisTrayTemplate@2x.png', 'Jarvis.icns'];
-const extensions = new Set(['.ts','.tsx','.js','.mjs','.cjs','.py','.swift','.json','.html','.css','.java','.xml','.gradle','.properties','.yml','.yaml','.md','.txt']);
-const binaryAssets = new Set([...brand.map(n => 'assets/brand/' + n), 'mobile/android/app/src/main/res/drawable/app_icon.png']);
+const extensions = new Set(['.ts','.tsx','.js','.mjs','.cjs','.py','.swift','.cs','.csproj','.manifest','.json','.html','.css','.java','.xml','.gradle','.properties','.yml','.yaml','.md','.txt']);
+const binaryAssets = new Set([...brand.map(n => 'assets/brand/' + n), 'mobile/android/app/src/main/res/drawable/app_icon.png', ...['positive','unrelated','near-name'].map(n=>'tests/fixtures/windows-wake/'+n+'.wav')]);
 const files = [...singles, ...brand.map(n => 'assets/brand/' + n)];
 async function visit(relative) {
   for (const e of await readdir(join(root, relative), {withFileTypes:true})) {
     const name = relative + '/' + e.name;
-    if (['build','.gradle','assets','node_modules','.git'].includes(e.name)) continue;
+    if (['build','.gradle','assets','node_modules','.git','bin','obj'].includes(e.name)) continue;
     if (e.isSymbolicLink()) throw Error('Symlink excluded: '+name);
     if (e.isDirectory()) await visit(name);
     else if (e.isFile() && (extensions.has(extname(name)) || binaryAssets.has(name) || e.name === 'CODEOWNERS')) files.push(name);

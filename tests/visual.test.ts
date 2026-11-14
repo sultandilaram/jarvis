@@ -33,7 +33,7 @@ test("visual clicks require exact image approval, ignore metadata overrides and 
     documentURL: "",
     pageContentAvailable: true,
     truncated: false,
-    elements: [{ id: "0", role: "AXWindow", secure: false, value: "" }],
+    elements: [{ id: "0", role: "AXWindow", subrole: "", label: "Fixture", secure: false, value: "", actions: [], pressMethod: "none", frame: {} }],
   };
   const scene = {
     imageUrl,
@@ -72,6 +72,20 @@ test("visual clicks require exact image approval, ignore metadata overrides and 
   syncBuiltinESMExports();
   try {
     const { DesktopService } = await import("../src/main/desktop/service.ts");
+    for(const patch of [{window:{value:'IMAGE-CONTEXT-CANARY'}},{elements:[{...context.elements[0],label:{value:'IMAGE-LABEL-CANARY'}}]}]) {
+      const saved=scene.contextSnapshot;scene.contextSnapshot={...context,...patch} as any;
+      const service=new DesktopService('fixture',()=>[],()=>{},()=>{throw Error('No UI');});service.visionAllowed=()=>true;
+      const result=await service.broker.execute('desktop.capture',{bundleId:context.bundleId});
+      assert.equal(result.success,false);assert.ok(!JSON.stringify(result).includes('CANARY'));assert.equal(service.captures.size,0);assert.equal(service.broker.pending.size,0);assert.equal(dispatched.length,0);
+      scene.contextSnapshot=saved;
+    }
+    for(const patch of [{helpText:{value:'SCENE-CANARY'}},{window:{value:'WINDOW-CANARY'}},{bundleId:{value:'BUNDLE-CANARY'}},{frame:{...scene.frame,helpText:{value:'FRAME-CANARY'}}},{width:{value:'WIDTH-CANARY'}},{height:1.5},{sceneHash:{value:'HASH-CANARY'}},{imageUrl:{value:'IMAGE-CANARY'}},{contextSnapshot:{...context,elements:[{...context.elements[0],secure:false,sensitive:true,label:'[sensitive control]',subrole:'[sensitive]',value:'[redacted]'}]}}]) {
+      const originalScene={...scene};Object.assign(scene,patch);
+      const service=new DesktopService('fixture',()=>[],()=>{},()=>{throw Error('No UI');});service.visionAllowed=()=>true;
+      const result=await service.broker.execute('desktop.capture',{bundleId:context.bundleId});
+      assert.equal(result.success,false,JSON.stringify(patch));assert.ok(!JSON.stringify(result).includes('CANARY'));assert.equal(service.captures.size,0);assert.equal(service.snapshots.size,0);assert.equal(service.broker.pending.size,0);assert.equal(dispatched.length,0);
+      for(const key of Object.keys(scene))delete (scene as any)[key];Object.assign(scene,originalScene);
+    }
     for (const mode of ["approve", "stop", "expired", "decline"]) {
       const service = new DesktopService(
         "fixture",

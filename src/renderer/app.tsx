@@ -849,6 +849,7 @@ function App() {
           ) : panelTab === "history" ? (
             <div className="history-list">
               <JobsPanel
+                projectAvailable={state.desktop?.platform === "darwin"}
                 jobs={state.jobs}
                 subagents={state.subagents}
                 enqueue={(input) =>
@@ -953,7 +954,7 @@ function App() {
               <span>
                 Start JARVIS at login
                 <small>
-                  Opens in the background. macOS registration:{" "}
+                  Opens in the background. Startup registration:{" "}
                   {state.background?.login.status || "unknown"}.
                 </small>
               </span>
@@ -1060,7 +1061,7 @@ function App() {
                   void run(async () => {
                     await window.jarvis.saveKey(key);
                     setKey("");
-                    setAccess("Key saved with macOS-backed encryption.");
+                    setAccess("Key saved with OS-backed encryption.");
                   })
                 }
               >
@@ -1111,7 +1112,7 @@ function App() {
               </button>
             </div>
             <small className="muted">
-              Encrypted locally, with its wrapping key protected by macOS
+              Encrypted locally using operating-system credential protection; on macOS the wrapping key is protected by macOS
               Keychain. Never sent to Codex or stored in history.
             </small>
             {access && <p className="access-result">{access}</p>}
@@ -1207,16 +1208,16 @@ function App() {
               Accessibility:{" "}
               {state?.desktop?.accessibility
                 ? "Enabled"
-                : "Requires macOS permission"}
+                : state.desktop?.platform === "win32" ? "Unavailable — check native helper" : "Requires macOS permission"}
             </p>
-            <p>Pointer event access: {state.desktop?.eventPosting === undefined ? "Not checked" : state.desktop.eventPosting ? "Available" : "Unavailable — clicks will be refused"}.</p>
-            <p>Screen capture: {state.desktop?.screenCapture === undefined ? "Not checked" : state.desktop.screenCapture ? "Available" : "Requires macOS permission"}. Visual fallback uses only the requested app window and refuses recognized sensitive input windows.</p>
+            <p hidden={state.desktop?.platform === "win32"}>Pointer event access: {state.desktop?.eventPosting === undefined ? "Not checked" : state.desktop.eventPosting ? "Available" : "Unavailable — clicks will be refused"}.</p>
+            <p hidden={state.desktop?.platform === "win32"}>Screen capture: {state.desktop?.screenCapture === undefined ? "Not checked" : state.desktop.screenCapture ? "Available" : "Requires macOS permission"}. Visual fallback uses only the requested app window and refuses recognized sensitive input windows.</p>
             <button className="subtle" onClick={()=>void run(()=>window.jarvis.desktopCheckAccess())}>Check desktop access</button>
-            <button className="subtle" onClick={()=>void run(()=>window.jarvis.desktopScreenPermissions())}>Open Screen Recording settings</button>
+            <button hidden={state.desktop?.platform === "win32"} className="subtle" onClick={()=>void run(()=>window.jarvis.desktopScreenPermissions())}>Open Screen Recording settings</button>
             <p className="muted small">Window images go to your selected task provider when visual tools are used. JARVIS omits inline images from its tool-history records; providers, including Codex, may keep their own task history. Visual clicks always need a marked-image review.</p>
             <p>
               Approval rules depend on your Autonomy setting. Unclassified and
-              consequential actions still require review. Other apps need Accessibility. Passwords
+              consequential actions still require review. {state.desktop?.platform === "win32" ? "Windows uses UI Automation for ordinary apps; elevated windows, external browser controls and visual fallback are unavailable." : "Other apps need Accessibility."} Passwords
               and payment fields stay manual.
             </p>
             <button
@@ -1227,7 +1228,7 @@ function App() {
                 })
               }
             >
-              Open Accessibility settings
+              {state.desktop?.platform === "win32" ? "About Windows app access" : "Open Accessibility settings"}
             </button>
             <p>Granted folders (ask JARVIS to grant another folder):</p>
             {state?.desktop?.roots.map((root) => (

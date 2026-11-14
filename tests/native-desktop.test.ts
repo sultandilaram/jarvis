@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -8,6 +8,9 @@ import { spawnSync } from "node:child_process";
 test("native desktop controller compiles and its real field policy protects sensitive inputs", { skip: process.platform !== "darwin", timeout: 120000 }, async () => {
   const dir = await mkdtemp(join(tmpdir(), "jarvis-native-policy-"));
   try {
+    const policy=JSON.parse(await readFile('src/shared/desktop-sensitive.json','utf8'));
+    const source=await readFile('native/DesktopControl.swift','utf8');
+    assert.equal(source.match(/^let desktopSensitivePattern = #"(.*)"#$/m)?.[1],policy.pattern);
     const helper = join(dir, "desktop-policy-test");
     const compiled = spawnSync("/usr/bin/xcrun", ["swiftc", "-D", "JARVIS_TESTING", "-module-cache-path", join(dir, "modules"), resolve("native/DesktopControl.swift"), "-o", helper], { encoding: "utf8", timeout: 100000 });
     assert.equal(compiled.status, 0, compiled.stderr || String(compiled.error));
@@ -17,6 +20,41 @@ test("native desktop controller compiles and its real field policy protects sens
       const result = spawnSync(helper, [], { input: JSON.stringify({ action: "test.pointerDispatch", allowed }), encoding: "utf8", timeout: 5000 });
       assert.equal(result.status, 0, result.stderr);
       assert.deepEqual(JSON.parse(result.stdout), { sequence: allowed ? ["preflight", "down", "up", "drain"] : ["preflight"], blocked: !allowed });
+    }
+    for(const secure of [true,false]) {
+      const r=spawnSync(helper,[],{input:JSON.stringify({action:"test.snapshotFields",label:"PIN-LABEL-CANARY",subrole:"PIN-ID-CANARY",value:"VALUE-CANARY",secure}),encoding:"utf8",timeout:5000});
+      assert.equal(r.status,0,r.stderr);assert.deepEqual(JSON.parse(r.stdout),secure?{label:"[sensitive control]",subrole:"[sensitive]",value:"[redacted]"}:{label:"PIN-LABEL-CANARY",subrole:"PIN-ID-CANARY",value:"VALUE-CANARY"});
+    }
+    for(const secure of [true,false]) {
+      const r=spawnSync(helper,[],{input:JSON.stringify({action:'test.guardedRead',secure}),encoding:'utf8',timeout:5000});assert.equal(r.status,0,r.stderr);
+      const result=JSON.parse(r.stdout);assert.equal(result.blocked,secure);assert.deepEqual(result.events,secure?['classify']:['classify','read']);assert.equal(JSON.stringify(result).includes('INERT-CANARY'),!secure);
+    }
+    const {assertDesktopPrivacy}=await import('../src/main/desktop/sensitive.ts');
+    for(const browser of [false,true]) {
+      const r=spawnSync(helper,[],{input:JSON.stringify({action:'test.protectedWindow',browser,title:'WINDOW-TITLE-CANARY',identifier:'WINDOW-ID-CANARY'}),encoding:'utf8',timeout:5000});assert.equal(r.status,0,r.stderr);
+      const context=JSON.parse(r.stdout);assert.equal(context.window,'[sensitive window]');assert.equal(context.windowIdentifier,'');assert.equal(context.documentURL,'');assert.equal(context.elements.length,1);assert.equal(context.pageContentAvailable,false);assert.ok(!r.stdout.includes('CANARY'));assert.doesNotThrow(()=>assertDesktopPrivacy(context));
+    }
+    for(const [nodes,expected] of [
+      [[{role:'AXWindow',label:'Fixture',children:[1,3]},{role:'AXGroup',label:'Credentials',children:[2]},{role:'AXWebArea',label:'Private canary',children:[]},{role:'AXWebArea',label:'Public',children:[]}],{found:true,node:3,path:[1],expanded:[0]}],
+      [[{role:'AXWindow',label:'Fixture',children:[1]},{role:'AXGroup',label:'Credentials',children:[2]},{role:'AXWebArea',label:'Private canary',children:[]}],{found:false,expanded:[0]}],
+      [[{role:'AXWindow',label:'Credentials',children:[1]},{role:'AXWebArea',label:'Private canary',children:[]}],{found:false,expanded:[]}],
+    ] as const) {
+      const r=spawnSync(helper,[],{input:JSON.stringify({action:'test.pageRoot',nodes}),encoding:'utf8',timeout:5000});assert.equal(r.status,0,r.stderr);assert.deepEqual(JSON.parse(r.stdout),expected);
+    }
+    {
+      const r=spawnSync(helper,[],{input:JSON.stringify({action:'test.ancestorReadback'}),encoding:'utf8',timeout:5000});assert.equal(r.status,0,r.stderr);assert.deepEqual(JSON.parse(r.stdout),{blocked:true,reads:1,expansions:3});
+    }
+    for(const [role,allowed] of [['AXWindow',false],['AXGroup',false],['AXWebArea',false],['AXScrollArea',false],['AXUnknown',false],['AXTextField',true],['AXTextArea',true],['AXStaticText',true],['AXButton',true],['AXLink',true]] as const) {
+      const r=spawnSync(helper,[],{input:JSON.stringify({action:'test.scalarValue',role}),encoding:'utf8',timeout:5000});assert.equal(r.status,0,r.stderr);assert.deepEqual(JSON.parse(r.stdout),{reads:allowed?1:0,value:allowed?'INERT-SCALAR-CANARY':''});
+    }
+    for(const role of ['AXTextArea','AXTextField','AXComboBox','AXStaticText','AXButton','AXLink']) {
+      const r=spawnSync(helper,[],{input:JSON.stringify({action:'test.scalarValue',role,hasChildren:true}),encoding:'utf8',timeout:5000});assert.equal(r.status,0,r.stderr);assert.deepEqual(JSON.parse(r.stdout),{reads:0,value:''});
+    }
+    for(const [role,hasChildren,expected] of [
+      ['AXTextArea',true,{reads:0,blocked:true}],['AXTextField',true,{reads:0,blocked:true}],['AXComboBox',true,{reads:0,blocked:true}],
+      ['AXButton',true,{reads:0,blocked:false,value:''}],['AXTextArea',false,{reads:1,blocked:false,value:'INERT-CANARY'}],
+    ] as const) {
+      const r=spawnSync(helper,[],{input:JSON.stringify({action:'test.mutationValue',role,hasChildren}),encoding:'utf8',timeout:5000});assert.equal(r.status,0,r.stderr);assert.deepEqual(JSON.parse(r.stdout),expected);
     }
     const cases: Array<[Record<string, string>, boolean]> = [
       [{ role: "AXTextField", label: "Display name" }, false],
@@ -31,6 +69,16 @@ test("native desktop controller compiles and its real field policy protects sens
       [{ role: "AXTextField", label: "Value", placeholder: "One-time code" }, true],
       [{ role: "AXTextField", label: "Value", help: "credit card security code" }, true],
       [{ role: "AXTextArea", label: "Recovery code" }, true],
+      [{ role: "AXSecureTextField", label: "Value" }, true],
+      [{ role: "AXTextField", label: "Value", identifier: "fieldPin" }, true],
+      [{ role: "AXGroup", label: "Credentials" }, true],
+      [{ role: "AXGroup", label: "Message controls" }, false],
+      [{ role: "AXWindow", label: "Password settings" }, true],
+      [{ role: "AXTextField", label: "Value", help: "Backup code" }, true],
+      [{ role: "AXTextField", label: "Value", help: "Recovery phrase" }, true],
+      [{ role: "AXTextField", label: "Value", placeholder: "Bank  Account" }, true],
+      [{ role: "AXTextField", label: "Value", identifier: "paymentDetails" }, true],
+      [{ role: "AXTextField", label: "Value", help: "Credential" }, true],
     ];
     for (const [url, allowed] of [["https://example.com", true], ["http://127.0.0.1:1234/", true], ["file:///tmp/test.html", true], ["chrome://password-manager/", false], ["arc://settings", false], ["data:text/html,private", false], ["https://user:secret@example.com", false], ["", false]] as const) {
       const result = spawnSync(helper, [], { input: JSON.stringify({ action: "test.browserPagePolicy", url }), encoding: "utf8", timeout: 5000 });

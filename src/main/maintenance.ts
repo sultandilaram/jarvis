@@ -17,6 +17,7 @@ export function excludedSourcePath(p:string) {
  const parts=p.split('/');
  return parts.some(s=>['.git','node_modules','.jarvis','.tmp','.home','.gradle'].includes(s))
   || ['dist','release','deliverables','build'].includes(parts[0])
+  || /^(native|tests)\/windows\/(bin|obj)(\/|$)/.test(p)
   || /^mobile\/android\/(?:app\/)?build(?:\/|$)/.test(p);
 }
 export function safeSourcePath(p:string) {return !!p && !excludedSourcePath(p) && !p.startsWith('/') && !/[\\\x00-\x1f]/.test(p) && p.split('/').every(s=>s && s!=='.' && s!=='..') && !/\.(pem|key|p12|jks|keystore|sqlite|db)$/.test(p) && !/(^|\/)\.env/.test(p);}
@@ -64,6 +65,7 @@ export class Maintenance {
  summary(){return {repository:'sultandilaram/jarvis',releaseBuilder:this.builderState?.(),mode:this.githubReady?.()?'github' as const:'local' as const,githubConfigured:!!this.githubReady?.(),pulls:this.githubPulls?.()||[],proposals:this.proposals().map(({changes,receipts,...p})=>({...p,changes:changes?.map(c=>({path:c.path,sensitive:sensitivePath(c.path)})),checks:receipts||[]}))};}
  git(args:string[]){return execFileSync('/usr/bin/git',['-c','core.hooksPath=/dev/null','-c','commit.gpgSign=false','-c','user.name=JARVIS Local Maintainer','-c','user.email=jarvis@localhost',...args],{cwd:this.root,encoding:'utf8',maxBuffer:8*1024*1024,env:{PATH:'/usr/bin:/bin',HOME:this.root,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null',GIT_TERMINAL_PROMPT:'0'},stdio:['ignore','pipe','pipe']}).trim();}
  ensure(){
+  if(process.platform!=="darwin")throw Error("Source maintenance requires verified OS confinement and is unavailable on this platform.");
   if(existsSync(join(this.root,'.git')))return;
   if(!existsSync(this.seed))throw Error('The maintenance source bundle is unavailable in this build.');
   const seed=JSON.parse(readFileSync(this.seed,'utf8'));
@@ -131,6 +133,7 @@ export class Maintenance {
   return {state:p.state,commit:p.commit,localOnly:true,installed:false};
  }
  async plan(action:string,args:Record<string,unknown>):Promise<ActionPlan>{
+  if(process.platform!=="darwin" && action!=="repo.status")throw Error("Source maintenance and release actions are unavailable on this platform.");
   if(action==='repo.status')return {title:'Inspect JARVIS maintenance',approval:false,preview:{},run:async()=>{
    const current=this.jobs.current();
    if(current?.profile!=='project')return this.summary();
