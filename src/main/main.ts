@@ -490,6 +490,10 @@ app.whenReady().then(async () => {
   );
   desktop.navigationTargets = () => agent.active ? agent.navigationTargets : [];
   desktop.browser.taskKey=()=>agent.active?.id||"idle";
+  let researchPermissionEpoch=0;
+  desktop.browser.researchEpoch=()=>agent.navigationEpoch+researchPermissionEpoch;
+  desktop.browser.researchText=()=>agent.operatorResearchText;
+  desktop.browser.publicResearchAllowed=()=>store.settings().approvalMode==="critical" && store.settings().publicResearchEnabled===true;
   desktop.browser.accessAllowed=()=>jobs?.current()?.profile!=="project";
   desktop.browser.owner=()=>window;
   desktop.browser.canEmbed=()=>!!window&&!window.isDestroyed()&&agent.approvals.size===0&&!updateInstalling;
@@ -1076,11 +1080,14 @@ app.whenReady().then(async () => {
       !["desktop", "project"].includes(String(profile))
     )
       throw Error("Invalid job");
-    return jobs.enqueue({
+    const job = jobs.enqueue({
       goal,
       profile: String(profile),
       runAt: typeof runAt === "string" ? runAt : undefined,
     });
+    job.operatorResearchText = goal;
+    jobs.save(job);
+    return job;
   });
   handle("jobControl", (id: unknown, action: unknown) => {
     if (
@@ -1218,13 +1225,20 @@ app.whenReady().then(async () => {
       agent.publish();
     }
   });
-  handle("settings", (patch: Partial<Settings>) => {
+  handle("settings", async(patch: Partial<Settings>) => {
     if (!patch || typeof patch !== "object")
       throw new Error("Invalid settings.");
+    if(patch.publicResearchEnabled===true && !store.settings().publicResearchEnabled){
+      configurationIdle();
+      const choice=await dialog.showMessageBox(window,{type:"warning",buttons:["Cancel","Allow public research"],defaultId:0,cancelId:0,title:"Allow automatic public research",message:"Let JARVIS research your requests without reviewing each search?",detail:"In Autopilot, search terms from your own task requests (including names and details you provide), plus neutral research words, can be sent to DuckDuckGo. JARVIS may read observed public result links in fresh tabs. This uses the separate JARVIS browser session; website cookies may apply. Files, account contents and retrieved pages cannot extend the automatic query vocabulary. New query terms, existing signed-in tabs, account/login pages, forms and consequential actions still need review. This permission applies to tasks until you turn it off. Stop and corrections revoke current research. Excerpts remain data for the task model, not instructions; this setting is a standing research permission, not an English-command detector."});
+      if(choice.response!==1)return {cancelled:true};
+      configurationIdle();
+    }
     const next = store.settings();
+    if(typeof patch.publicResearchEnabled==="boolean" && patch.publicResearchEnabled!==!!next.publicResearchEnabled){desktop.stop();researchPermissionEpoch++;next.publicResearchEnabled=patch.publicResearchEnabled;}
     if(typeof patch.subagentsEnabled === "boolean") next.subagentsEnabled=patch.subagentsEnabled;
     if (patch.approvalMode === "always" || patch.approvalMode === "critical") {
-      if (next.approvalMode !== patch.approvalMode) desktop.stop();
+      if (next.approvalMode !== patch.approvalMode) {desktop.stop();researchPermissionEpoch++;}
       next.approvalMode = patch.approvalMode;
     }
     if (liveVoices.includes(patch.voiceName as any))

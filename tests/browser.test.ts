@@ -34,6 +34,599 @@ function fixture() {
 }
 const result = (r: any) =>
   JSON.parse(r.contentItems.find((i: any) => i.type === "inputText").text);
+test("public research defaults to exact review and model arguments cannot enable it", async () => {
+  const f = fixture();
+  try {
+    f.browser.researchText = () => "Explain a log excerpt about blue whales";
+    const pending = f.broker.execute("browser.search", {
+      query: "blue whales",
+      publicResearchEnabled: true,
+      researchText: "blue whales",
+    });
+    await tick();
+    assert.equal(f.broker.pending.size, 1);
+    assert.equal(f.views()[0].webContents.getURL(), "about:blank");
+    f.broker.decide([...f.broker.pending.keys()][0], false);
+    assert.equal((await pending).success, false);
+    f.browser.publicResearchAllowed = () => true;
+    assert(
+      (await f.broker.execute("browser.search", { query: "blue whales" }))
+        .success,
+    );
+  } finally {
+    f.browser.destroy();
+  }
+});
+test("labelled credentials cannot enter automatic searches even without their label", async () => {
+  for (const [request, query] of [
+    ["My password is hunter2. Research blue whales", "hunter2"],
+    ["My password is hunter2. Research blue whales", "password hunter2"],
+    ["My API key is demo-secret. Research blue whales", "demo-secret"],
+    ["My API key is demo-secret. Research blue whales", "api key demo-secret"],
+    ...[
+      "session token",
+      "backup codes",
+      "backupCodes",
+      "passcode",
+      "passcodes",
+      "recovery seed",
+      "recoveryPhrase",
+      "unlock phrase",
+      "security answer",
+      "keys",
+      "ssh",
+      "wallet phrase",
+      "TOTP",
+      "MFA",
+      "2FA",
+      "PINs",
+      "JWTs",
+      "signing material",
+      "connection URI",
+      "session_token",
+      "AuthorizationHeader",
+      "Authorization: Bearer",
+      "accessToken",
+      "sessionToken",
+      "Cookie",
+      "refresh token",
+      "password",
+      "passwd",
+      "passphrase",
+      "credential",
+      "secret",
+      "signature",
+      "assertion",
+      "SAML",
+      "CSRF",
+      "XSRF",
+      "ticket",
+      "nonce",
+      "API key",
+      "access key",
+      "private key",
+      "auth code",
+      "verification code",
+      "one time code",
+      "connection string",
+      "database URL",
+      "recovery phrase",
+      "seed phrase",
+      "mnemonic",
+      "OTP",
+      "PIN",
+      "pwd",
+      "SID",
+      "sig",
+      "JWT",
+      "PEM",
+      "DSN",
+      "oobcode",
+    ].map((label) => [
+      "My " + label + " is demoabc123. Research blue whales",
+      "demoabc123",
+    ]),
+  ]) {
+    const f = fixture();
+    try {
+      f.browser.publicResearchAllowed = () => true;
+      f.browser.researchText = () => request;
+      const pending = f.broker.execute("browser.search", { query });
+      await tick();
+      assert.equal(f.broker.pending.size, 1);
+      assert.equal(f.views()[0].webContents.getURL(), "about:blank");
+      f.broker.decide([...f.broker.pending.keys()][0], false);
+      assert.equal((await pending).success, false);
+    } finally {
+      f.browser.destroy();
+    }
+  }
+});
+test("explicit searches run without approval only in Autopilot and use fresh task tabs", async () => {
+  const f = fixture();
+  try {
+    const { requestedNavigationTargets, searchURL } =
+      await import("../src/main/desktop/approval-policy.ts");
+    let request = "Search for blue whales";
+    f.browser.researchText = () => request;
+    f.browser.publicResearchAllowed = () => true;
+    const manual = f.browser.create(true);
+    await f.browser.navigate(manual, "https://example.com/draft");
+    const r = await f.broker.execute("browser.search", {
+      query: "blue whales",
+    });
+    assert(r.success);
+    assert.equal(f.broker.pending.size, 0);
+    assert.equal(
+      f.views()[0].webContents.getURL(),
+      "https://example.com/draft",
+    );
+    assert.equal(f.views()[1].webContents.getURL(), searchURL("blue whales"));
+    assert(f.browser.state().tabs.find((t) => t.id === manual)!.manual);
+    for (const query of ["private-file-contents", "blue whales PRIVATE"]) {
+      const pending = f.broker.execute("browser.search", { query });
+      await tick();
+      assert.equal(f.broker.pending.size, 1);
+      f.broker.decide([...f.broker.pending.keys()][0], false);
+      assert.equal((await pending).success, false);
+      assert.equal(f.views().at(-1)!.webContents.getURL(), "about:blank");
+    }
+    const always = new DesktopBroker(
+      (a, args) => f.browser.plan(a, args),
+      () => "always",
+    );
+    const pending = always.execute("browser.search", { query: "blue whales" });
+    await tick();
+    assert.equal(always.pending.size, 1);
+    always.decide([...always.pending.keys()][0], false);
+    assert.equal((await pending).success, false);
+    const plan = await f.browser.plan("browser.search", {
+      query: "blue whales",
+    });
+    request = "";
+    await assert.rejects(plan.verify!(), /authority changed/);
+    await assert.rejects(
+      plan.run(new AbortController().signal),
+      /authority changed/,
+    );
+    assert.equal(f.views().at(-1)!.webContents.getURL(), "about:blank");
+    request = "Search for blue whales";
+    const stopped = await f.browser.plan("browser.search", {
+      query: "blue whales",
+    });
+    await stopped.verify!();
+    f.browser.stop();
+    await assert.rejects(stopped.run(new AbortController().signal));
+    assert.equal(f.views().at(-1)!.webContents.getURL(), "about:blank");
+  } finally {
+    f.browser.destroy();
+  }
+});
+test("research follows only observed public links and loses authority on takeover or Stop", async () => {
+  const f = fixture();
+  try {
+    const { requestedNavigationTargets } =
+      await import("../src/main/desktop/approval-policy.ts");
+    f.browser.researchText = () => "Search for blue whales";
+    f.browser.publicResearchAllowed = () => true;
+    const searched = result(
+      await f.broker.execute("browser.search", { query: "blue whales" }),
+    );
+    const source = f.views()[0].webContents;
+    source.inspection = {
+      url: source.url,
+      title: "Results",
+      text: "Public research",
+      elements: [
+        {
+          id: "0",
+          tag: "A",
+          type: "",
+          label: "Source",
+          href: "https://example.org/whales",
+          value: "",
+          sensitive: false,
+        },
+        {
+          id: "1",
+          tag: "A",
+          type: "",
+          label: "Action",
+          href: "https://example.org/delete/1",
+          value: "",
+          sensitive: false,
+        },
+        {
+          id: "2",
+          tag: "BUTTON",
+          type: "submit",
+          label: "Submit",
+          href: "",
+          value: "",
+          sensitive: false,
+        },
+      ],
+    };
+    const read = result(
+      await f.broker.execute("browser.read", { tabId: searched.tabId }),
+    );
+    const followed = await f.broker.execute("browser.follow", {
+      snapshotId: read.snapshotId,
+      elementId: "0",
+    });
+    assert(followed.success);
+    assert.equal(f.broker.pending.size, 0);
+    assert.equal(
+      f.views()[1].webContents.getURL(),
+      "https://example.org/whales",
+    );
+    assert(source.url.includes("duckduckgo.com"));
+    for (const elementId of ["2", "3"])
+      assert.equal(
+        (
+          await f.broker.execute("browser.follow", {
+            snapshotId: read.snapshotId,
+            elementId,
+          })
+        ).success,
+        false,
+      );
+    const critical = f.broker.execute("browser.follow", {
+      snapshotId: read.snapshotId,
+      elementId: "1",
+    });
+    await tick();
+    assert.equal(f.broker.pending.size, 1);
+    f.broker.decide([...f.broker.pending.keys()][0], false);
+    assert.equal((await critical).success, false);
+    const stale = await f.browser.plan("browser.follow", {
+      snapshotId: read.snapshotId,
+      elementId: "0",
+    });
+    f.browser.takeControl(searched.tabId);
+    await assert.rejects(stale.run(new AbortController().signal));
+    assert.equal(f.views().at(-1)!.webContents.getURL(), "about:blank");
+    assert.equal(
+      (
+        await f.broker.execute("browser.follow", {
+          snapshotId: read.snapshotId,
+          elementId: "0",
+        })
+      ).success,
+      false,
+    );
+    const manual = f.browser.create(true);
+    await f.browser.navigate(manual, "https://example.net/read");
+    await f.browser.resume(manual);
+    const w = f.views().at(-1)!.webContents;
+    w.inspection = { ...source.inspection, url: w.url };
+    const ownerRead = result(
+      await f.broker.execute("browser.read", { tabId: manual }),
+    );
+    const ownerFollow = f.broker.execute("browser.follow", {
+      snapshotId: ownerRead.snapshotId,
+      elementId: "0",
+    });
+    await tick();
+    assert.equal(f.broker.pending.size, 1);
+    f.broker.decide([...f.broker.pending.keys()][0], false);
+    assert.equal((await ownerFollow).success, false);
+    f.browser.stop();
+    assert.equal(
+      (
+        await f.broker.execute("browser.follow", {
+          snapshotId: ownerRead.snapshotId,
+          elementId: "0",
+        })
+      ).success,
+      false,
+    );
+  } finally {
+    f.browser.destroy();
+  }
+});
+test("observed opaque and action-host links still require exact review", async () => {
+  for (const href of [
+    "https://delete.example.org/item",
+    "https://example.org/7f83b1657ff1fc53b92dc18148a1d65dfa13514e08761d044fe41ef747bb431a",
+  ]) {
+    const f = fixture();
+    try {
+      f.browser.researchText = () => "Research blue whales";
+      f.browser.publicResearchAllowed = () => true;
+      const root = result(
+        await f.broker.execute("browser.search", { query: "blue whales" }),
+      );
+      const w = f.views()[0].webContents;
+      w.inspection = {
+        url: w.url,
+        title: "Public",
+        text: "Public",
+        elements: [
+          {
+            id: "0",
+            tag: "A",
+            type: "",
+            label: "Result",
+            href,
+            value: "",
+            sensitive: false,
+          },
+        ],
+      };
+      const read = result(
+        await f.broker.execute("browser.read", { tabId: root.tabId }),
+      );
+      const pending = f.broker.execute("browser.follow", {
+        snapshotId: read.snapshotId,
+        elementId: "0",
+      });
+      await tick();
+      assert.equal(f.broker.pending.size, 1, href);
+      assert.equal(f.views().at(-1)!.webContents.getURL(), "about:blank");
+      f.broker.decide([...f.broker.pending.keys()][0], false);
+      assert.equal((await pending).success, false);
+    } finally {
+      f.browser.destroy();
+    }
+  }
+});
+test("descendant research cannot survive ancestor revocation, unrelated navigation or grant renewal", async () => {
+  const { requestedNavigationTargets } =
+    await import("../src/main/desktop/approval-policy.ts");
+  for (const revoke of [
+    "takeover",
+    "close",
+    "input",
+    "open",
+    "grants",
+    "epoch",
+    "permission",
+    "stop",
+  ]) {
+    const f = fixture();
+    try {
+      let request = "Search for blue whales",
+        epoch = 1,
+        enabled = true;
+      f.browser.researchText = () => request;
+      f.browser.publicResearchAllowed = () => enabled;
+      f.browser.researchEpoch = () => epoch;
+      const root = result(
+        await f.broker.execute("browser.search", { query: "blue whales" }),
+      );
+      const rootWC = f.views()[0].webContents;
+      const page = (url: string) => ({
+        url,
+        title: "Public research",
+        text: "Inert",
+        elements: [
+          {
+            id: "0",
+            tag: "A",
+            type: "",
+            label: "Source",
+            href: "https://example.org/child",
+            value: "",
+            sensitive: false,
+          },
+          {
+            id: "1",
+            tag: "INPUT",
+            type: "text",
+            label: "Draft",
+            href: "",
+            value: "Initial",
+            sensitive: false,
+          },
+        ],
+      });
+      rootWC.inspection = page(rootWC.url);
+      const rootRead = result(
+        await f.broker.execute("browser.read", { tabId: root.tabId }),
+      );
+      const child = result(
+        await f.broker.execute("browser.follow", {
+          snapshotId: rootRead.snapshotId,
+          elementId: "0",
+        }),
+      );
+      const childWC = f.views()[1].webContents;
+      childWC.inspection = page(childWC.url);
+      const childRead = result(
+        await f.broker.execute("browser.read", { tabId: child.tabId }),
+      );
+      const prepared = await f.browser.plan("browser.follow", {
+        snapshotId: childRead.snapshotId,
+        elementId: "0",
+      });
+      await prepared.verify!();
+      if (revoke === "takeover") f.browser.takeControl(root.tabId);
+      if (revoke === "close") f.browser.close(root.tabId);
+      if (revoke === "input" || revoke === "open") {
+        const pending =
+          revoke === "input"
+            ? f.broker.execute("browser.type", {
+                snapshotId: rootRead.snapshotId,
+                elementId: "1",
+                text: "Owner draft",
+              })
+            : f.broker.execute("browser.open", {
+                tabId: child.tabId,
+                url: "https://unrelated.example/read",
+              });
+        await tick();
+        assert.equal(f.broker.pending.size, 1);
+        f.broker.decide([...f.broker.pending.keys()][0], true);
+        assert((await pending).success);
+        if (revoke === "input") assert(rootWC.executions.length > 0);
+      }
+      if (revoke === "grants") request = "";
+      if (revoke === "epoch") {
+        request = "";
+        epoch++;
+        request = "Search for blue whales";
+      }
+      if (revoke === "permission") enabled = false;
+      if (revoke === "stop") f.browser.stop();
+      await assert.rejects(
+        prepared.run(new AbortController().signal),
+        /./,
+        revoke,
+      );
+      assert.equal(f.views()[2].webContents.getURL(), "about:blank", revoke);
+      let snapshotId = childRead.snapshotId;
+      if (revoke === "open") {
+        childWC.inspection = page(childWC.url);
+        snapshotId = result(
+          await f.broker.execute("browser.read", { tabId: child.tabId }),
+        ).snapshotId;
+      }
+      const retried = f.broker.execute("browser.follow", {
+        snapshotId,
+        elementId: "0",
+      });
+      await tick();
+      if (f.broker.pending.size)
+        f.broker.decide([...f.broker.pending.keys()][0], false);
+      assert.equal((await retried).success, false, revoke);
+    } finally {
+      f.browser.destroy();
+    }
+  }
+});
+test("awaited search and follow cannot restore research after takeover/handover or unrelated navigation", async () => {
+  for (const action of ["browser.search", "browser.follow"])
+    for (const revoke of [
+      "takeover-resume",
+      "unrelated-open",
+      "renderer-navigation",
+      "same-url-reload",
+      "in-page",
+      "redirect-commit",
+      "redirect-roundtrip",
+      "redirect-will",
+    ]) {
+      const f = fixture();
+      try {
+        f.browser.researchText = () => "Research blue whales";
+        f.browser.publicResearchAllowed = () => true;
+        let args: Record<string, unknown> = { query: "blue whales" };
+        if (action === "browser.follow") {
+          const root = result(await f.broker.execute("browser.search", args));
+          const w = f.views()[0].webContents;
+          w.inspection = {
+            url: w.url,
+            title: "Public",
+            text: "Public",
+            elements: [
+              {
+                id: "0",
+                tag: "A",
+                type: "",
+                label: "Source",
+                href: "https://example.org/article",
+                value: "",
+                sensitive: false,
+              },
+            ],
+          };
+          const read = result(
+            await f.broker.execute("browser.read", { tabId: root.tabId }),
+          );
+          args = { snapshotId: read.snapshotId, elementId: "0" };
+        }
+        const plan = await f.browser.plan(action, args),
+          tab = f.browser.state().tabs.at(-1)!,
+          w = f.views().at(-1)!.webContents,
+          load = w.loadURL.bind(w);
+        let once = false;
+        w.loadURL = async (url: string) => {
+          await load(url);
+          if (once) return;
+          once = true;
+          if (
+            revoke === "renderer-navigation" ||
+            revoke === "same-url-reload"
+          ) {
+            await load(
+              revoke === "same-url-reload"
+                ? url
+                : "https://unrelated.example/article",
+            );
+          } else if (revoke === "in-page") {
+            w.url = url + "#owner";
+            w.emit("did-navigate-in-page", {}, w.url, true);
+          } else if (revoke === "redirect-roundtrip") {
+            w.emit(
+              "did-redirect-navigation",
+              {},
+              "https://unrelated.example/article",
+              false,
+              true,
+            );
+            w.emit("did-redirect-navigation", {}, url, false, true);
+          } else if (revoke === "redirect-will") {
+            let blocked = false;
+            w.emit(
+              "will-redirect",
+              {
+                preventDefault() {
+                  blocked = true;
+                },
+              },
+              "https://unrelated.example/article",
+              false,
+              true,
+            );
+            assert.equal(blocked, true);
+          } else if (revoke === "redirect-commit") {
+            w.url = "https://redirected.example/article";
+            w.emit("did-navigate", {}, w.url);
+          } else if (revoke === "takeover-resume") {
+            f.browser.takeControl(tab.id);
+            await f.browser.resume(tab.id);
+          } else {
+            const other = await f.browser.plan("browser.open", {
+              tabId: tab.id,
+              url: "https://unrelated.example/article",
+            });
+            await other.run(new AbortController().signal);
+          }
+        };
+        await assert.rejects(plan.run(new AbortController().signal));
+        w.inspection = {
+          url: w.url,
+          title: "Public",
+          text: "Public",
+          elements: [
+            {
+              id: "0",
+              tag: "A",
+              type: "",
+              label: "Source",
+              href: "https://example.org/next",
+              value: "",
+              sensitive: false,
+            },
+          ],
+        };
+        const current = result(
+          await f.broker.execute("browser.read", { tabId: tab.id }),
+        );
+        const attempt = f.broker.execute("browser.follow", {
+          snapshotId: current.snapshotId,
+          elementId: "0",
+        });
+        await tick();
+        assert.equal(f.broker.pending.size, 1);
+        f.broker.decide([...f.broker.pending.keys()][0], false);
+        assert.equal((await attempt).success, false);
+      } finally {
+        f.browser.destroy();
+      }
+    }
+});
 test("revocation before renderer entry prevents input, navigation and tab closure", async () => {
   for (const action of [
     "browser.click",
@@ -656,6 +1249,8 @@ test("isolated project jobs cannot list, create, inspect or mutate browser sessi
     for (const action of [
       "browser.tabs",
       "browser.new_tab",
+      "browser.search",
+      "browser.follow",
       "browser.read",
       "browser.open",
     ]) {

@@ -130,6 +130,7 @@ export class Store {
   settings(): Settings {
     return {
       approvalMode: "always",
+      publicResearchEnabled: false,
       subagentsEnabled: false,
       keepAvailable: false,
       routineChecks: false,

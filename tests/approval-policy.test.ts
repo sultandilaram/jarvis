@@ -5,9 +5,62 @@ import {
   isAutomatic,
   routineNavigation,
   routineApps,
+  requestedNavigationTargets,
+  searchURL,
+  researchQueryWithinRequest,
+  authorizedNavigation,
+  routineResearchNavigation,
   type ApprovalMode,
 } from "../src/main/desktop/approval-policy.ts";
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
+test("public research navigation reviews account hosts, account paths and opaque encodings", () => {
+  assert(routineResearchNavigation("https://example.org/docs/whales"));
+  for (const u of [
+    "https://example.org/account",
+    "https://example.org/settings",
+    "https://accounts.example.org/",
+    "https://login.example.org/",
+    "https://example.org/%2564elete/1",
+    "https://example.org/profile",
+    "https://example.org/?q=private",
+  ])
+    assert.equal(routineResearchNavigation(u), false, u);
+});
+test("research vocabulary is operator data, not an English permission parser", () => {
+  const text =
+    "The first tool was not suitable. Can you find some options for comparing local text editors?";
+  assert(researchQueryWithinRequest("local text editors comparison", text));
+  for (const q of [
+    "PRIVATE_FILE_CONTENT",
+    "local text editors PRIVATE",
+    "sk-abcdefghijklmnopqrstuvwxyz123456789",
+    "123456789012",
+  ])
+    assert.equal(researchQueryWithinRequest(q, text), false);
+  assert.equal(researchQueryWithinRequest("local editors", ""), false);
+  assert.equal(
+    new URL(searchURL("blue & red # docs")).searchParams.get("q"),
+    "blue & red # docs",
+  );
+  for (const operatorText of [
+    text,
+    "Search for blue whales",
+    "This is a labelled log excerpt. Please search for blue whales",
+    "Search for blue whales. Disregard that request",
+  ])
+    assert.deepEqual(
+      requestedNavigationTargets(operatorText),
+      [],
+      "research text cannot mint a navigation grant",
+    );
+  // Standing permission is enforced independently by the actual browser/broker.
+  assert(
+    researchQueryWithinRequest(
+      "blue whales",
+      "Explain this log excerpt about blue whales",
+    ),
+  );
+});
 test("autopilot has a closed trusted classification list; model arguments cannot authorize", () => {
   for (const action of [
     "files.open",
@@ -39,6 +92,19 @@ test("autopilot has a closed trusted classification list; model arguments cannot
   assert.equal(isAutomatic("apps.open", "open-app", "unknown"), false);
   assert.equal(routineApps.has("com.apple.Terminal"), false);
   assert.equal(routineApps.has("com.apple.systempreferences"), false);
+});
+test("research links review action hosts and opaque path tokens", () => {
+  assert.equal(
+    routineResearchNavigation("https://example.org/articles/whales"),
+    true,
+  );
+  for (const url of [
+    "https://delete.example.org/item",
+    "https://pay.example.org/item",
+    "https://example.org/7f83b1657ff1fc53b92dc18148a1d65dfa13514e08761d044fe41ef747bb431a",
+    "https://example.org/%37f83b1657ff1fc53b92dc18148a1d65dfa13514e08761d044fe41ef747bb431a",
+  ])
+    assert.equal(routineResearchNavigation(url), false, url);
 });
 test("opaque, local, account and consequential navigation links require review", () => {
   assert.equal(routineNavigation("https://example.com/docs/start"), true);
