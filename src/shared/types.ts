@@ -27,6 +27,7 @@ export type Memory = {
   scope?: string;
 };
 export type Settings = {
+  publicResearchEnabled?: boolean;
   subagentsEnabled?: boolean;
   approvalMode?: "always" | "critical";
   keepAvailable?: boolean;

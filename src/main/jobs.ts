@@ -36,6 +36,7 @@ export type Job = {
   source?: string;
   notBefore?: number;
   operatorNavigationTargets?: string[];
+  operatorResearchText?: string;
 };
 export class JobManager {
   onCreated?: (job: Job) => void;
@@ -209,10 +210,12 @@ export class JobManager {
       // A correction revokes previous automatic destinations immediately. A
       // failed steering request must not grant new destinations or retain old ones.
       this.agent.navigationTargets = [];
-      if (current) { current.operatorNavigationTargets = []; this.save(current); }
-      const result = await this.agent.send(text, navigationTargets);
+      this.agent.operatorResearchText = "";
+      if (current) { current.operatorNavigationTargets = []; current.operatorResearchText = ""; this.save(current); }
+      const result = await this.agent.send(text, navigationTargets, text);
       if (current && this.current()?.id === current.id) {
         current.operatorNavigationTargets = [...navigationTargets];
+        current.operatorResearchText = text;
         this.save(current);
       }
       return result;
@@ -220,6 +223,7 @@ export class JobManager {
     const threadId = this.agent.threadId;
     const job = this.enqueue({ goal: text });
     job.operatorNavigationTargets = navigationTargets;
+    job.operatorResearchText = text;
     job.threadId = threadId || undefined;
     this.save(job);
     return job;
@@ -309,7 +313,7 @@ export class JobManager {
     job.error = undefined;
     this.save(job);
     try {
-      await this.agent.send(prompt, job.operatorNavigationTargets || []);
+      await this.agent.send(prompt, job.operatorNavigationTargets || [], job.operatorResearchText || "");
     } catch (e) {
       job.state = "failed";
       job.error = String(e);

@@ -55,6 +55,15 @@ function setup() {
   agent.status = "ready";
   return { store, codex, agent };
 }
+test("public research requires a separate owner opt-in", () => {
+  const store = new Store(":memory:");
+  assert.equal(store.settings().publicResearchEnabled, false);
+  store.set("settings", { approvalMode: "critical" });
+  assert.equal(store.settings().publicResearchEnabled, false);
+  store.set("settings", { approvalMode: "critical", publicResearchEnabled: true });
+  assert.equal(store.settings().publicResearchEnabled, true);
+  store.close();
+});
 test("history and confirmed/inferred memories survive reopening; interrupted work is recovered", async () => {
   const dir = await mkdtemp(join(tmpdir(), "jarvis-"));
   const path = join(dir, "state.sqlite");

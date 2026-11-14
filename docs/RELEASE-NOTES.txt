@@ -1,3 +1,20 @@
+JARVIS 0.8.1 — public research without repeated Autopilot approval
+
+Adds a separate, off-by-default public-research permission in Autonomy with
+native privacy confirmation. In Autopilot, browser.search opens fresh task tabs
+and uses words from the trusted operator request plus neutral research terms.
+Files, pages, account contents and model-generated jobs cannot extend query words.
+Requests mentioning recognized credential labels keep searches reviewed. Automatic
+redirects stop for manual inspection. This is a standing permission, not an
+English intent/cancellation parser.
+browser.follow reads observed simple public result links in fresh tabs.
+Unknown terms, owner-tab handover, account/login/settings destinations, generic
+clicking, input, forms and consequential actions retain review. Stop, corrections,
+permission changes and ancestor takeover/navigation revoke research; superseded
+loads cannot return unrelated content or restore revoked lineage.
+The browser tool contract is refreshed so old chats learn the new research route.
+No Android binary or public release is authorized by this source change.
+
 JARVIS 0.8.0 — configurable intelligence and controlled app interaction
 
 - Add opt-in Autopilot for trusted routine actions; retain exact review for consequential effects.

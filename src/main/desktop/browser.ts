@@ -7,7 +7,12 @@ import {
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
 import type { ActionPlan } from "./broker.ts";
-import { authorizedNavigation } from "./approval-policy.ts";
+import {
+  authorizedNavigation,
+  researchQueryWithinRequest,
+  routineResearchNavigation,
+  searchURL,
+} from "./approval-policy.ts";
 const credentialParameter =
   /token|secret|password|passwd|credential|apikey|accesskey|signature|session|sessid|jwt|assertion|saml|csrf|xsrf|ticket|^(?:code|key|sig|sid|otp|oobcode|state|nonce|pwd|auth|authorization|authentication|authcode|authkey)$/i;
 // Shared by host URL checks and the actual isolated-world link inspection.
@@ -116,15 +121,27 @@ export type BrowserState = {
   activeTabId: string | null;
   tabs: BrowserTabState[];
 };
+type ResearchAuthority = {
+  id: string;
+  task: string;
+  query: string;
+  grantKey: string;
+  grantEpoch: number;
+  ancestors: { tabId: string; generation: number; authorityId: string }[];
+};
 type Tab = {
   id: string;
   view: WebContentsView;
   manual: boolean;
   generation: number;
+  revocationEpoch: number;
+  expectedNavigation?: { url: string; started: boolean };
+  research?: ResearchAuthority;
   error?: string;
   popup?: string;
 };
 type PageSnapshot = {
+  research?: ResearchAuthority;
   id: string;
   tabId: string;
   generation: number;
@@ -154,6 +171,9 @@ export function validBrowserBounds(
 }
 export class ControlledBrowser extends EventEmitter {
   navigationTargets: () => readonly string[] = () => [];
+  researchEpoch: () => number = () => 0;
+  researchText: () => string = () => "";
+  publicResearchAllowed: () => boolean = () => false;
   taskKey: () => string = () => "default";
   accessAllowed: () => boolean = () => true;
   canEmbed: () => boolean = () => false;
@@ -192,6 +212,7 @@ export class ControlledBrowser extends EventEmitter {
     return t;
   }
   private invalidate(t: Tab) {
+    t.research = undefined;
     t.generation++;
     for (const [id, s] of this.pages)
       if (s.tabId === t.id) this.pages.delete(id);
@@ -201,6 +222,51 @@ export class ControlledBrowser extends EventEmitter {
       throw Error(
         "This browser tab is under your control. Use Let JARVIS use this tab, or approve browser.request_control, after finishing sign-in.",
       );
+  }
+  private authorityActive(r: ResearchAuthority) {
+    return (
+      this.publicResearchAllowed() &&
+      this.taskKey() === r.task &&
+      this.researchEpoch() === r.grantEpoch &&
+      this.researchText() === r.grantKey &&
+      researchQueryWithinRequest(r.query, this.researchText()) &&
+      r.ancestors.every((a) => {
+        const parent = this.tabs.get(a.tabId);
+        return (
+          parent &&
+          !parent.manual &&
+          parent.generation === a.generation &&
+          parent.research?.id === a.authorityId
+        );
+      })
+    );
+  }
+  private researchActive(t: Tab, r: ResearchAuthority | undefined) {
+    return !!r && t.research === r && !t.manual && this.authorityActive(r);
+  }
+  private markResearch(
+    id: string,
+    result: unknown,
+    r: ResearchAuthority,
+    destinationEpoch: number,
+  ) {
+    if (!result || typeof result !== "object" || !("snapshotId" in result))
+      return;
+    const t = this.tab(id),
+      snapshot = this.pages.get(String(result.snapshotId));
+    this.automatic(t);
+    if (
+      !this.authorityActive(r) ||
+      t.revocationEpoch !== destinationEpoch ||
+      !snapshot ||
+      snapshot.tabId !== id ||
+      snapshot.generation !== t.generation
+    )
+      throw Error(
+        "Research context changed after navigation. Inspect this tab before retrying.",
+      );
+    t.research = r;
+    snapshot.research = r;
   }
   state(): BrowserState {
     return {
@@ -265,7 +331,13 @@ export class ControlledBrowser extends EventEmitter {
     });
     view.setBounds({ x: 0, y: 0, width: 1100, height: 750 });
     view.setVisible(false);
-    const t: Tab = { id: randomUUID(), view, manual, generation: 0 };
+    const t: Tab = {
+      id: randomUUID(),
+      view,
+      manual,
+      generation: 0,
+      revocationEpoch: 0,
+    };
     this.tabs.set(t.id, t);
     const w = view.webContents;
     w.setWindowOpenHandler(({ url }) => {
@@ -287,9 +359,34 @@ export class ControlledBrowser extends EventEmitter {
       }
     };
     w.on("will-navigate", navigation);
-    w.on("will-redirect", navigation);
-    w.on("did-start-navigation", (_e, _url, _inPlace, main) => {
+    w.on("will-redirect", (e, url, _inPlace, main) => {
+      navigation(e, url);
+      if ((e.isMainFrame ?? main) === false) return;
+      t.revocationEpoch++;
+      t.expectedNavigation = undefined;
+      this.invalidate(t);
+      if (!t.manual) {
+        e.preventDefault();
+        t.error =
+          "Automatic navigation stopped at a redirect. Inspect the destination manually before continuing.";
+        this.changed();
+      }
+    });
+    w.on("did-redirect-navigation", (e, _url, _inPlace, main) => {
+      if ((e.isMainFrame ?? main) === false) return;
+      t.revocationEpoch++;
+      t.expectedNavigation = undefined;
+      this.invalidate(t);
+    });
+    w.on("did-start-navigation", (_e, url, inPlace, main) => {
       if (main) {
+        const expected = t.expectedNavigation;
+        if (expected && !expected.started && !inPlace && url === expected.url)
+          expected.started = true;
+        else {
+          t.revocationEpoch++;
+          t.expectedNavigation = undefined;
+        }
         this.invalidate(t);
         t.error = undefined;
         t.popup = undefined;
@@ -306,7 +403,11 @@ export class ControlledBrowser extends EventEmitter {
     };
     w.on("did-navigate", navigated);
     w.on("did-navigate-in-page", (_e, _url, main) => {
-      if (main) this.invalidate(t);
+      if (main) {
+        t.revocationEpoch++;
+        t.expectedNavigation = undefined;
+        this.invalidate(t);
+      }
       navigated();
     });
     w.on("did-stop-loading", () => this.changed());
@@ -374,6 +475,8 @@ export class ControlledBrowser extends EventEmitter {
   }
   takeControl(id: string) {
     const t = this.tab(id);
+    t.revocationEpoch++;
+    t.research = undefined;
     if (!t.manual) {
       t.manual = true;
       this.invalidate(t);
@@ -415,6 +518,7 @@ export class ControlledBrowser extends EventEmitter {
         "The page changed during handover. Try again on the intended tab.",
       );
     t.manual = false;
+    t.revocationEpoch++;
     this.invalidate(t);
     this.changed();
   }
@@ -528,6 +632,7 @@ export class ControlledBrowser extends EventEmitter {
         "Browser page changed during inspection. Read this tab again.",
       );
     const s: PageSnapshot = {
+      research: t.research,
       id: randomUUID(),
       tabId: t.id,
       generation,
@@ -579,6 +684,138 @@ export class ControlledBrowser extends EventEmitter {
           const tabId = this.create(false);
           this.bindTask(tabId);
           return { tabId };
+        },
+      };
+    }
+    if (action === "browser.search") {
+      const url = searchURL(args.query);
+      // Search always uses a fresh task tab: no handover of a signed-in tab,
+      // replacement of existing work, or form interaction is implied.
+      const tabId = this.create(false);
+      this.bindTask(tabId);
+      const plan = await this.plan("browser.open", { tabId, url });
+      const routine =
+        this.publicResearchAllowed() &&
+        researchQueryWithinRequest(args.query, this.researchText());
+      const task = this.taskKey();
+      const grantKey = this.researchText();
+      const grantEpoch = this.researchEpoch();
+      const destinationEpoch = this.tab(tabId).revocationEpoch + 1;
+      const verifyAuthority = () => {
+        if (
+          this.taskKey() !== task ||
+          this.researchEpoch() !== grantEpoch ||
+          (routine &&
+            (!this.publicResearchAllowed() ||
+              !researchQueryWithinRequest(args.query, this.researchText())))
+        )
+          throw Error("Search authority changed. Request a fresh search.");
+      };
+      return {
+        ...plan,
+        title: "Search the web in JARVIS Browser",
+        routine: routine ? "browse" : undefined,
+        preview: { ...plan.preview, query: args.query },
+        verify: async () => {
+          verifyAuthority();
+          await plan.verify?.();
+        },
+        run: async (signal) => {
+          signal.throwIfAborted();
+          verifyAuthority();
+          const result = await plan.run(signal);
+          signal.throwIfAborted();
+          verifyAuthority();
+          if (routine)
+            this.markResearch(
+              tabId,
+              result,
+              {
+                id: randomUUID(),
+                task,
+                query: String(args.query),
+                grantKey,
+                grantEpoch,
+                ancestors: [],
+              },
+              destinationEpoch,
+            );
+          return result;
+        },
+      };
+    }
+    if (action === "browser.follow") {
+      const source = this.pages.get(String(args.snapshotId));
+      if (!source)
+        throw Error("Read the source page again before following a link.");
+      const sourceTab = this.tab(source.tabId),
+        task = this.taskKey();
+      const link = source.data.elements?.find(
+        (e: any) => e.id === args.elementId && e.tag === "A",
+      );
+      if (!link?.href)
+        throw Error("Choose an observed page link, not a button or form.");
+      const url = safeURL(link.href);
+      const authority = source.research;
+      const research = this.researchActive(sourceTab, authority);
+      const routine = research && routineResearchNavigation(url);
+      const verifySource = () => {
+        this.automatic(sourceTab);
+        if (
+          this.taskKey() !== task ||
+          this.pages.get(source.id) !== source ||
+          source.generation !== sourceTab.generation ||
+          performance.now() - source.at > 120000 ||
+          (research && !this.researchActive(sourceTab, authority))
+        )
+          throw Error(
+            "Source page or research authority changed. Read it again.",
+          );
+      };
+      verifySource();
+      const tabId = this.create(false);
+      this.bindTask(tabId);
+      const plan = await this.plan("browser.open", { tabId, url });
+      const destinationEpoch = this.tab(tabId).revocationEpoch + 1;
+      return {
+        ...plan,
+        title: "Read linked page in a new JARVIS tab",
+        routine: routine ? "browse" : undefined,
+        preview: {
+          ...plan.preview,
+          sourceTabId: source.tabId,
+          effect:
+            "Read this observed link in a fresh tab. The source page stays open; no click or form submission is performed.",
+        },
+        verify: async () => {
+          verifySource();
+          await plan.verify?.();
+        },
+        run: async (signal) => {
+          signal.throwIfAborted();
+          verifySource();
+          const result = await plan.run(signal);
+          signal.throwIfAborted();
+          verifySource();
+          if (routine && authority)
+            this.markResearch(
+              tabId,
+              result,
+              {
+                ...authority,
+                id: randomUUID(),
+                ancestors: [
+                  ...authority.ancestors,
+                  {
+                    tabId: sourceTab.id,
+                    generation: source.generation,
+                    authorityId: authority.id,
+                  },
+                ],
+              },
+              destinationEpoch,
+            );
+          return result;
         },
       };
     }
@@ -687,12 +924,24 @@ export class ControlledBrowser extends EventEmitter {
         run: async (signal) => {
           signal.throwIfAborted();
           verifyCurrent();
+          t.research = undefined;
+          const navigationEpoch = ++t.revocationEpoch;
+          const expectedNavigation = { url, started: false };
+          t.expectedNavigation = expectedNavigation;
           const w = this.wc(t),
             abort = () => w.stop();
           signal.addEventListener("abort", abort, { once: true });
           try {
             await this.load(t, url);
             signal.throwIfAborted();
+            if (
+              t.revocationEpoch !== navigationEpoch ||
+              t.expectedNavigation !== expectedNavigation ||
+              w.getURL() !== url
+            )
+              throw Error(
+                "Navigation was superseded. No page content returned; inspect the current tab.",
+              );
             if (sensitiveBrowserURL(url)) {
               this.takeControl(t.id);
               this.reveal(t.id);
@@ -704,6 +953,8 @@ export class ControlledBrowser extends EventEmitter {
             }
             return await this.read(t.id);
           } finally {
+            if (t.expectedNavigation === expectedNavigation)
+              t.expectedNavigation = undefined;
             signal.removeEventListener("abort", abort);
           }
         },
@@ -792,6 +1043,8 @@ export class ControlledBrowser extends EventEmitter {
         verifyCurrent();
         const id = Number(element.id),
           text = JSON.stringify(args.text);
+        t.research = undefined;
+        t.revocationEpoch++;
         const dispatched = await this.evaluate(
           `(() => {const current=${inspect};if(current.manualRequired)return {manualRequired:true};const expectedPage=${JSON.stringify(snapshot.data)};if(current.url!==expectedPage.url||current.title!==expectedPage.title||current.text!==expectedPage.text||JSON.stringify(current.elements)!==JSON.stringify(expectedPage.elements))throw Error('Page changed during execution');const e=globalThis.__jarvisElements[${id}];if(!e||!e.isConnected)throw Error('Element detached');const expected=${JSON.stringify(element)};const label=(e.getAttribute('aria-label')||e.innerText||e.getAttribute('placeholder')||e.name||'').slice(0,300);if(location.href!==${JSON.stringify(snapshot.data.url)}||e.tagName!==expected.tag||(e.type||'')!==expected.type||label!==expected.label||(e.href||'')!==expected.href||String(e.value||'').slice(0,1000)!==expected.value)throw Error('Target changed during execution');${action === "browser.click" ? "e.click();return {dispatched:true};" : `const setter=Object.getOwnPropertyDescriptor(e.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set;setter.call(e,${text});e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));return {value:e.value};`}})()`,
           t.id,
@@ -815,6 +1068,8 @@ export class ControlledBrowser extends EventEmitter {
   }
   stop() {
     for (const t of this.tabs.values()) {
+      t.research = undefined;
+      t.revocationEpoch++;
       this.invalidate(t);
       if (!t.view.webContents.isDestroyed()) t.view.webContents.stop();
     }

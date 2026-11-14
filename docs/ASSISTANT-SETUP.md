@@ -30,7 +30,7 @@ adapter context. This does not control a provider's own retention.
 
 Settings → Autonomy defaults to review every action. Autopilot permits only these
 trusted routine classifications: known ordinary app launches, exact public HTTPS
-addresses in explicit opening requests, new non-executable text drafts
+addresses in explicit opening requests, fresh-tab public research when separately enabled, new non-executable text drafts
 inside the app Workspace, isolated project imports/offline commands, and scrolling
 to observed controls in known apps. Existing grants and OS confinement still apply.
 Model-generated URLs, including addresses with data encoded in their host or path,
@@ -88,6 +88,40 @@ calls. Isolated project jobs cannot use these custom servers. A failed call is
 never retried automatically because its external effects may be uncertain.
 
 ## JARVIS Browser
+
+Enable Settings → Autonomy → Allow automatic public research once, then use
+Autopilot. The setting is off by default and shows a native privacy confirmation:
+search words from your own requests, including names and task details, may be sent
+to DuckDuckGo. Website cookies in the separate JARVIS browser session may apply.
+Enable it while work is paused; turn it off at any time to revoke research.
+
+JARVIS uses `browser.search` in fresh task tabs. Automatic query words must come
+from your own task request plus a small neutral research vocabulary. Files,
+account contents, retrieved pages, checkpoints and model-created jobs cannot
+extend that vocabulary. Unknown terms, permission off and Ask every time mode
+retain exact review. A request containing recognized credential labels requires review
+for all its searches, including queries that omit the credential label. This
+conservative check can also review public research about passwords or API keys;
+it cannot identify every credential label or unlabeled secret. The task model
+must keep sensitive searches behind exact review, using reviewed navigation
+instead of the automatic research route when uncertain. Automatic redirects are stopped for
+manual inspection, including redirects returning to the original address.
+The setting grants standing public research: it does not
+parse every English cancellation or data wrapper. Excerpts are data for the task
+model, which must honor cancellations and must not obey embedded instructions.
+
+`browser.follow` opens an observed link in a fresh tab. Simple public HTTPS
+result links within the live task research lineage can open automatically.
+Model-invented, query-bearing, account/login/settings, action and opaque URLs
+retain review. Existing owner tabs are never handed over or overwritten by this
+permission; generic input, clicking and forms retain their existing approvals.
+
+Task and permission epochs, every ancestor tab and fresh snapshot membership
+bind research authority. Stop, corrections, permission or mode changes, owner
+takeover, closure, input and unrelated navigation revoke it. A load superseded
+while awaiting navigation cannot return unrelated page content or restore a
+revoked lineage. URL filters cannot prove that every external server handles a
+GET request without side effects.
 
 The Browser tab beside Voice and Chats contains up to 16 page tabs, with an
 address/search bar, back/forward, reload/stop and close controls. Tabs share a
