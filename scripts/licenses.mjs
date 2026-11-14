@@ -4,7 +4,7 @@ import { join,resolve,relative,sep } from 'node:path';
 const root=await realpath('.');
 const out=resolve('dist/licenses');await rm(out,{recursive:true,force:true});await mkdir(out,{recursive:true});
 await copyFile('LICENSE',join(out,'JARVIS-LICENSE.txt'));await copyFile('NOTICE',join(out,'JARVIS-NOTICE.txt'));
-const [reportedRoot,...paths]=execFileSync('npm',['ls','--omit=dev','--all','--parseable'],{encoding:'utf8'}).trim().split('\n'),inventory=[];
+const [reportedRoot,...paths]=execFileSync(process.platform==='win32'?process.execPath:'npm',process.platform==='win32'?[process.env.npm_execpath || (()=>{throw Error('Run the Windows build using npm run build.');})(),'ls','--omit=dev','--all','--parseable']:['ls','--omit=dev','--all','--parseable'],{encoding:'utf8'}).trim().split('\n'),inventory=[];
 for(const reported of new Set(paths)){
  // npm redacts UUIDs in parseable output, including legitimate build-directory
  // names. Recover dependency paths relative to its equally redacted root; never

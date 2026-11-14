@@ -9,9 +9,11 @@ export class ReleaseUpdater extends EventEmitter {
   manifest?:ReleaseManifest;
   state:UpdateState;
   busy=false;
+  platformSupported=true;
   constructor(public current:string,public directory:string,public fetchBytes=githubBytes, public verificationKey=releasePublicKey) {super();this.state={current,repository:releaseRepository,phase:'idle'};}
   change(patch:Partial<UpdateState>) {this.state={...this.state,...patch};this.emit('change');}
   async check() {
+    if(!this.platformSupported){this.manifest=undefined;this.change({phase:"error",release:undefined,error:"Verified automatic updates are not available for this platform yet. Use a reviewed Windows download."});return this.state;}
     if(this.busy)return this.state;
     this.busy=true;this.manifest=undefined;this.change({phase:'checking',error:undefined,release:undefined});
     try {
@@ -29,6 +31,7 @@ export class ReleaseUpdater extends EventEmitter {
     return this.state;
   }
   async download(signal?:AbortSignal) {
+    if(!this.platformSupported)throw Error("No verified update artifact exists for this platform.");
     if(this.busy || !this.manifest || this.state.phase!=='available')throw Error('Check for a verified available update first.');
     this.busy=true;const m=this.manifest;this.change({phase:'downloading',error:undefined});
     const stage=join(this.directory,randomUUID());

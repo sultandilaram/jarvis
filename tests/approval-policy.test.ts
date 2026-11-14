@@ -247,3 +247,9 @@ test("autopilot navigation is bound to exact operator targets, never model-gener
     ["https://example.com/"],
   );
 });
+
+test('search uses the static results endpoint and treats metacharacters only as query data',()=>{
+ const query='blue & red # docs? ia=web';const url=new URL(searchURL(query));
+ assert.equal(url.origin,'https://html.duckduckgo.com');assert.equal(url.pathname,'/html/');
+ assert.deepEqual([...url.searchParams],[['q',query]]);assert.equal(url.hash,'');
+});

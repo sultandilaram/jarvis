@@ -574,7 +574,17 @@ export class ControlledBrowser extends EventEmitter {
   }
   private async load(t: Tab, url: string) {
     try {
-      await this.wc(t).loadURL(url);
+      const w=this.wc(t);
+      await w.loadURL(url);
+      // loadURL may resolve before subresources finish. Inspection requires a
+      // settled page; all original epoch/URL guards still run after this wait.
+      if(w.isLoading())await new Promise<void>((resolve,reject)=>{
+        const cleanup=()=>{clearTimeout(timer);w.removeListener("did-stop-loading",ready);w.removeListener("destroyed",destroyed);};
+        const ready=()=>{if(!w.isDestroyed()&&!w.isLoading()){cleanup();resolve();}};
+        const destroyed=()=>{cleanup();reject(Error("Browser tab closed during navigation."));};
+        const timer=setTimeout(()=>{cleanup();reject(Error("Browser loading did not settle within 15 seconds."));},15000);
+        w.on("did-stop-loading",ready);w.once("destroyed",destroyed);ready();
+      });
     } catch {
       throw Error(
         "Browser navigation did not complete. Inspect this tab before retrying; no browser security warning was bypassed.",

@@ -10,6 +10,7 @@ type JobInput = {
 };
 export function JobsPanel({
   jobs = [],
+  projectAvailable = true,
   subagents = [],
   enqueue,
   control,
@@ -17,6 +18,7 @@ export function JobsPanel({
   run,
 }: {
   jobs?: Job[];
+  projectAvailable?: boolean;
   subagents?: SubagentRun[];
   enqueue: (input: JobInput) => Promise<unknown>;
   control: (
@@ -73,7 +75,7 @@ export function JobsPanel({
             }
           >
             <option value="desktop">Desktop assistance</option>
-            <option value="project">Project coding and builds</option>
+            <option value="project" disabled={!projectAvailable}>Project coding and builds{!projectAvailable ? " · unavailable on this platform" : ""}</option>
           </select>
         </label>
         <p className="job-help">
@@ -81,6 +83,7 @@ export function JobsPanel({
             ? "Creates a fresh project folder. JARVIS can edit files there; each command requires approval. Personal folders stay inaccessible. Network is off unless you approve public HTTPS for a specific command."
             : "Uses the existing desktop, browser and granted-file tools. Consequential actions wait for approval."}
         </p>
+        {!projectAvailable && <p className="job-help">Project coding and source maintenance are unavailable until this platform has verified OS confinement.</p>}
         <label>
           Run at (optional)
           <input
