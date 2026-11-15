@@ -23,3 +23,8 @@ Workspace/
 .env.*
 *.sqlite*
 *.db
+
+native/windows/bin/
+native/windows/obj/
+tests/windows/bin/
+tests/windows/obj/
