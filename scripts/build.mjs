@@ -1,3 +1,4 @@
+import "./check-desktop-policy.mjs";
 import { execFileSync } from "node:child_process";
 import { build } from "esbuild";
 import { mkdir, copyFile, cp } from "node:fs/promises";

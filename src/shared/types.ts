@@ -96,6 +96,7 @@ export type Snapshot = {
   watches?: import("../main/watch.ts").WatchState;
   remote?: RemoteState;
   desktop?: {
+    platform?: string;
     roots: string[];
     capabilities: string[];
     accessibility: boolean;

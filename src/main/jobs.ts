@@ -150,6 +150,7 @@ export class JobManager {
       args.profile !== "project"
     )
       throw Error("Unknown execution profile.");
+    if(args.profile === "project" && process.platform !== "darwin")throw Error("Project jobs are unavailable until this platform has verified OS confinement.");
     if (
       this.list().filter(
         (j) => !["completed", "failed", "cancelled"].includes(j.state),

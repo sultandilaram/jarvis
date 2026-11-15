@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
+import { dirname } from "node:path";
 import { existsSync } from "node:fs";
 export type WakeStatus = {
   state: "disabled" | "starting" | "listening" | "paused" | "error";
@@ -27,7 +28,7 @@ export class WakeController extends EventEmitter {
     detail: "Local wake listening is off.",
     lastWakeAt: null,
   };
-  constructor(public helperPath: string) {
+  constructor(public helperPath: string, public helperArgs: string[] = []) {
     super();
   }
   publish(state: WakeStatus["state"], detail: string) {
@@ -64,7 +65,7 @@ export class WakeController extends EventEmitter {
       this.publish(
         "paused",
         this.systemPaused
-          ? "Paused while the Mac is locked or asleep."
+          ? "Paused while the computer is locked or asleep."
           : "Paused during the active voice session.",
       );
       return;
@@ -94,7 +95,7 @@ export class WakeController extends EventEmitter {
       return;
     }
     this.publish("starting", "Starting strictly on-device recognition…");
-    const child = spawn(this.helperPath, [], { stdio: "pipe" });
+    const child = spawn(this.helperPath, this.helperArgs, { stdio: "pipe", windowsHide: true, ...(process.platform === "win32" ? {cwd:dirname(this.helperPath)} : {}) });
     this.child = child;
     child.on("error", (error) => {
       if (this.child === child) {

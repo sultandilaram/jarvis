@@ -1,3 +1,4 @@
+import { windowsCodexBinary } from "./codex-binary.ts";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { createInterface } from "node:readline";
@@ -21,7 +22,7 @@ export class Codex extends EventEmitter {
   desktopMode = false;
   desktopConfig: Record<string, unknown> = {};
   async connect(cwd: string) {
-    const binary =
+    const binary = process.platform === "win32" ? windowsCodexBinary() :
       process.env.JARVIS_CODEX_PATH ||
       (existsSync(bundledCodex) ? bundledCodex : "codex");
     const env = { ...process.env };
@@ -62,6 +63,7 @@ export class Codex extends EventEmitter {
       : [];
     const child = spawn(binary, [...overrides, "app-server", "--stdio"], {
       cwd,
+      windowsHide: true,
       env,
       stdio: "pipe",
     });

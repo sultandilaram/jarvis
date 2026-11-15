@@ -9,6 +9,7 @@ import { releasePublicKey } from '../shared/release-config.ts';
 import { checksPassed,type GitHubMaintenance } from './github-maintenance.ts';
 export type LocalReleaseState={phase:'idle'|'preparing'|'building'|'verifying'|'publishing'|'completed'|'failed'|'interrupted';version?:string;commit?:string;error?:string;url?:string;log?:string};
 export function validateBuildState(directory:string){
+ if(process.platform!=="darwin")throw Error("Privileged release builds are supported only on the configured macOS build host.");
  const root=realpathSync(directory),st=statSync(root);
  if(!st.isDirectory()||(st.mode&0o077))throw Error('Choose an owner-only private build-state directory.');
  for(const file of ['private/local-signing.json','private/vault-v1/identity.json','private/release-signing/ed25519-private.pem','android-tools/environment.json','android-tools/test-signing.json'])if(!existsSync(join(root,file)))throw Error('Private build state is missing '+file+'.');

@@ -1,3 +1,4 @@
+import "./check-desktop-policy.mjs";
 import { packager } from "@electron/packager";
 import { execFileSync } from "node:child_process";
 import { mkdir, writeFile, rm, cp, readFile } from "node:fs/promises";

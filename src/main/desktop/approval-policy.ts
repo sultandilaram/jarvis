@@ -122,7 +122,9 @@ export function searchURL(query: unknown) {
     /[\x00-\x1f\x7f]/.test(query)
   )
     throw Error("Enter a search query of 1–1,000 characters.");
-  const u = new URL("https://duckduckgo.com/");
+  // The scripted site rewrites its URL, correctly revoking research authority.
+  // Use the supported static results page rather than weakening navigation guards.
+  const u = new URL("https://html.duckduckgo.com/html/");
   u.searchParams.set("q", query.trim());
   return u.href;
 }

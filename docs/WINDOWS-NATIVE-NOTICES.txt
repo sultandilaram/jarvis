@@ -1,0 +1,18 @@
+Windows native components
+
+Vosk 0.3.38: Copyright Alpha Cephei Inc, Apache-2.0.
+Source: https://github.com/alphacep/vosk-api/tree/v0.3.38
+Offline model vosk-model-small-en-us-0.15: Apache-2.0.
+Source: https://alphacephei.com/vosk/models
+
+The Vosk Windows binary includes GCC runtime DLLs (libgcc_s_seh-1.dll,
+libstdc++-6.dll) and MinGW-w64 libwinpthread-1.dll. GCC is distributed under GPL-3.0 with GCC Runtime Library Exception 3.1;
+libwinpthread uses the MinGW-w64 notices. Full notices and the runtime exception
+are included alongside this file. The runtime exception permits eligible target
+code combined with independent modules under the terms in that exception.
+GCC source: https://gcc.gnu.org/git/?p=gcc.git
+MinGW-w64 source: https://github.com/mingw-w64/mingw-w64
+These unmodified DLLs come from the checksum-locked official Vosk NuGet package.
+
+.NET 10 runtime and WPF are bundled self-contained. Their license and runtime
+third-party notices are included alongside this file.

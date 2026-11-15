@@ -65,7 +65,7 @@ export async function encryptSecret(value: string): Promise<Buffer> {
       await vault("seal", Buffer.from(value, "utf8")),
     ]);
   if (!(await safeStorage.isAsyncEncryptionAvailable()))
-    throw Error("macOS credential encryption is unavailable.");
+    throw Error("OS credential encryption is unavailable.");
   return safeStorage.encryptStringAsync(value);
 }
 export async function decryptSecret(data: Buffer): Promise<string> {

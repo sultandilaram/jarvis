@@ -1,0 +1,34 @@
+import {packager} from '@electron/packager';
+import {mkdir,rm,readFile,writeFile,copyFile,cp,readdir,lstat} from 'node:fs/promises';
+import {resolve,join} from 'node:path';
+import {execFileSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
+const version=JSON.parse(await readFile('package.json','utf8')).version;
+const receipt=JSON.parse(await readFile('.jarvis/windows-native/build-receipt.json','utf8'));
+if(receipt.schema!==1||receipt.platform!=='win32'||receipt.arch!=='x64')throw Error('Invalid native build receipt.');
+for(const name of ['native/windows/Desktop.cs','native/windows/Wake.cs','native/windows/Program.cs','native/windows/JarvisNative.csproj','native/windows/app.manifest','native/windows/packages.lock.json','src/shared/desktop-sensitive.json'])if(createHash('sha256').update(await readFile(name)).digest('hex')!==receipt.sourceHashes?.[name])throw Error('Native helper is stale; run npm run native:windows.');
+const stage=resolve('.jarvis/windows-package-stage'),out=resolve('.jarvis/windows-candidate');
+await rm(stage,{recursive:true,force:true});await mkdir(join(stage,'dist'),{recursive:true});
+// Positive file list: never copy dist/native, credentials, mobile APKs or owner state.
+for(const name of ['main.cjs','preload.cjs','app.js','app.css','index.html','maintenance-source.json'])await copyFile(join('dist',name),join(stage,'dist',name));
+await cp('dist/brand',join(stage,'dist/brand'),{recursive:true});
+await cp('dist/licenses',join(stage,'dist/licenses'),{recursive:true});
+await cp('.jarvis/windows-native',join(stage,'dist/native/windows'),{recursive:true,filter:p=>!p.endsWith('.pdb')});
+await writeFile(join(stage,'package.json'),JSON.stringify({name:'jarvis-desktop',productName:'JARVIS',version,main:'dist/main.cjs'}));
+await copyFile('docs/WINDOWS.md',join(stage,'WINDOWS.md'));
+const native=join(stage,'dist/native/windows');
+for(const name of ['JarvisNative.exe','libvosk.dll','libstdc++-6.dll','libgcc_s_seh-1.dll','libwinpthread-1.dll','wake-model/am/final.mdl'])await lstat(join(native,name));
+async function audit(dir){for(const e of await readdir(dir,{withFileTypes:true})){const path=join(dir,e.name);if(e.isSymbolicLink())throw Error('No symlinks in Windows stage.');if(e.isDirectory())await audit(path);else if(/\.(pem|key|p12|pfx|jks|keystore|sqlite|dylib|so)$/i.test(e.name)||e.name.startsWith('.env'))throw Error('Excluded Windows package file: '+e.name);}}
+await audit(stage);
+const png=await readFile('assets/brand/jarvis-64.png');const header=Buffer.alloc(22);header.writeUInt16LE(1,2);header.writeUInt16LE(1,4);header[6]=64;header[7]=64;header.writeUInt16LE(1,10);header.writeUInt16LE(32,12);header.writeUInt32LE(png.length,14);header.writeUInt32LE(22,18);
+const icon=resolve('.jarvis/windows-icon.ico');await writeFile(icon,Buffer.concat([header,png]));
+await mkdir(out,{recursive:true});
+const paths=await packager({dir:stage,out,platform:'win32',arch:'x64',name:'JARVIS',appVersion:version,electronVersion:'45.3.0',asar:false,overwrite:true,icon,executableName:'JARVIS',win32metadata:{CompanyName:'JARVIS contributors',FileDescription:'JARVIS personal assistant',ProductName:'JARVIS'}});
+const folder=paths[0];const filename=`JARVIS-Windows-x64-${version}-UNVERIFIED.zip`,archive=join(out,filename);
+await rm(archive,{force:true});
+if(process.platform==='win32')execFileSync('tar.exe',['-a','-c','-f',archive,'-C',out,'JARVIS-win32-x64'],{stdio:'inherit'});
+else if(process.platform==='darwin')execFileSync('/usr/bin/ditto',['--norsrc','--noextattr','--noqtn','-c','-k','--keepParent',folder,archive],{stdio:'inherit'});
+else throw Error('Archive this candidate on macOS or Windows.');
+const bytes=await readFile(archive);const sha256=createHash('sha256').update(bytes).digest('hex');
+await writeFile(join(out,'candidate.json'),JSON.stringify({version,platform:'win32',arch:'x64',file:filename,bytes:bytes.length,sha256,nativeRuntimeTested:false,readyForTesters:false,reason:'Windows runtime and physical voice acceptance required before delivery.'},null,2));
+console.log(JSON.stringify({candidate:archive,sha256,readyForTesters:false}));

@@ -97,7 +97,7 @@ let watchTimer: ReturnType<typeof setInterval>;
 let localVoiceActive = false;
 let isQuitting = false;
 function loginState() {
-  if (process.platform !== "darwin")
+  if (!["darwin","win32"].includes(process.platform))
     return { enabled: false, status: "unsupported" };
   const item = app.getLoginItemSettings();
   return { enabled: item.openAtLogin, status: item.status || "unknown" };
@@ -121,7 +121,8 @@ function snapshot() {
     remote: remote?.state(),
     desktop: {
       roots: desktop?.roots() || [],
-      accessibility: systemPreferences.isTrustedAccessibilityClient(false),
+      platform: process.platform,
+      accessibility: process.platform === "darwin" ? systemPreferences.isTrustedAccessibilityClient(false) : desktopAccess?.accessibility === true,
       eventPosting: desktopAccess?.eventPosting,
       screenCapture: desktopAccess?.screenCapture,
       capabilities: [
@@ -158,7 +159,7 @@ function setLogin(enabled: boolean) {
     throw new Error(
       "Login startup requires the packaged JARVIS.app. Use npm run package.",
     );
-  app.setLoginItemSettings({ openAtLogin: enabled });
+  app.setLoginItemSettings({ openAtLogin: enabled, ...(process.platform === "win32" ? {path:process.execPath,args:["--background"]} : {}) });
 }
 function refreshTray() {
   tray.setToolTip(`JARVIS · ${wake.status.detail}`);
@@ -414,6 +415,7 @@ app.whenReady().then(async () => {
   mkdirSync(data, { recursive: true, mode: 0o700 });
   keyPath = join(data, "openai-key.enc");
   updater = new ReleaseUpdater(app.getVersion(), join(data,"Updates"));
+  updater.platformSupported=process.platform === "darwin" && process.arch === "arm64";
   updater.on("change", publishBackground);
   store = new Store(join(data, "jarvis.sqlite"));
   const providerPath=join(data,"task-providers.enc");
@@ -458,11 +460,12 @@ app.whenReady().then(async () => {
   const background =
     process.argv.includes("--background") ||
     app.getLoginItemSettings().wasOpenedAtLogin;
-  wake = new WakeController(join(__dirname, "native", "jarvis-wake"));
+  const windowsNative=join(__dirname,"native","windows","JarvisNative.exe");
+  wake = new WakeController(process.platform === "win32" ? windowsNative : join(__dirname, "native", "jarvis-wake"),process.platform === "win32" ? ["--wake"] : []);
   const fileWorkspace = join(workspace, "Workspace");
   mkdirSync(fileWorkspace, { recursive: true, mode: 0o700 });
   desktop = new DesktopService(
-    join(__dirname, "native", "jarvis-desktop-control"),
+    process.platform === "win32" ? windowsNative : join(__dirname, "native", "jarvis-desktop-control"),
     () => store.get<string[]>("desktopRoots", [fileWorkspace]),
     (roots) => {
       store.set("desktopRoots", roots);
@@ -471,6 +474,8 @@ app.whenReady().then(async () => {
     () => window,
     fileWorkspace,
   );
+  desktop.files.protectedLocations=[data,app.getAppPath()];
+  if(process.platform === "win32") {try {const access=await nativeCall(windowsNative,{action:"permissions"},new AbortController().signal);desktopAccess={accessibility:access.accessibility===true,eventPosting:false,screenCapture:false};}catch{desktopAccess={accessibility:false,eventPosting:false,screenCapture:false};}}
   google.allowed=()=>jobs?.current()?.profile!=="project";
   desktop.broker.approvalMode = () => store.settings().approvalMode === "critical" ? "critical" : "always";
   desktop.visionAllowed=()=>providers.config.selected==="codex"||providers.profile()?.visionVerified===true;
@@ -823,8 +828,7 @@ app.whenReady().then(async () => {
     minHeight: 650,
     backgroundColor: "#030b12",
     title: "JARVIS",
-    titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 20, y: 20 },
+    ...(process.platform === "darwin" ? {titleBarStyle: "hiddenInset" as const, trafficLightPosition: { x: 20, y: 20 }} : {}),
     webPreferences: {
       preload: join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -847,9 +851,9 @@ app.whenReady().then(async () => {
     window.webContents.send("jarvis:wake");
   });
   const trayIcon = nativeImage.createFromPath(
-    join(__dirname, "brand", "jarvisTrayTemplate.png"),
+    join(__dirname, "brand", process.platform === "darwin" ? "jarvisTrayTemplate.png" : "jarvis-64.png"),
   );
-  trayIcon.setTemplateImage(true);
+  if(process.platform === "darwin")trayIcon.setTemplateImage(true);
   tray = new Tray(trayIcon);
   refreshTray();
   let suspended = false,
@@ -910,7 +914,7 @@ app.whenReady().then(async () => {
       window.webContents.send("jarvis:state", snapshot());
   });
   handle("snapshot", snapshot);
-  handle("desktopScreenPermissions",()=>shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"));
+  handle("desktopScreenPermissions",()=>{if(process.platform !== "darwin")throw Error("Window capture is unavailable on this platform.");return shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture");});
   handle("desktopCheckAccess",async()=>{
     const result=await nativeCall(desktop.helper,{action:"permissions"},new AbortController().signal);
     desktopAccess={accessibility:result.accessibility===true,eventPosting:result.eventPosting===true,screenCapture:result.screenCapture===true};
@@ -1139,6 +1143,7 @@ app.whenReady().then(async () => {
   );
   handle("desktopPermissions", async () => {
     showWindow();
+    if(process.platform === "win32")return "Windows UI Automation supports ordinary, unelevated applications. Run JARVIS as a normal user; protected windows require direct interaction.";
     systemPreferences.isTrustedAccessibilityClient(true);
     await shell.openExternal(
       "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
@@ -1366,7 +1371,7 @@ app.whenReady().then(async () => {
   updateTimer=setInterval(()=>void updater.check(),6*60*60*1000);
   if(app.isPackaged)void updater.check();
   agent.publish();
-  window.setFullScreen(!background && !process.argv.includes("--windowed"));
+  window.setFullScreen(process.platform === "darwin" && !background && !process.argv.includes("--windowed"));
   if (background) app.dock?.hide();
   wake.configure(store.settings().wakeWordEnabled);
   if (

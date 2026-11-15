@@ -409,7 +409,7 @@ test("actual desktop service receives zero native calls from project scope while
   const stub='data:text/javascript,'+encodeURIComponent('export const dialog={};export const shell={};export class BrowserWindow{};export class WebContentsView{};export const session={};');
   const hook=modules.registerHooks({resolve(s,c,next){return s==='electron'?{url:stub,shortCircuit:true}:next(s,c);}});
   const mutable=cp.default,original=mutable.execFile,calls:any[]=[];
-  mutable.execFile=((_file:any,_args:any,_options:any,callback:any)=>({stdin:{end(raw:string){const args=JSON.parse(raw);calls.push(args);queueMicrotask(()=>callback(null,JSON.stringify(args.action==='apps.list'?{apps:[{bundleId:'fixture.application'}]}:args.action==='desktop.observe'?{bundleId:'fixture.application',elements:[],pageContentAvailable:true,truncated:false}:{launchAccepted:true,verified:false})));}}})) as any;
+  mutable.execFile=((_file:any,_args:any,_options:any,callback:any)=>({stdin:{end(raw:string){const args=JSON.parse(raw);calls.push(args);queueMicrotask(()=>callback(null,JSON.stringify(args.action==='apps.list'?{apps:[{bundleId:'fixture.application'}]}:args.action==='desktop.observe'?{bundleId:'fixture.application',pid:123,window:'Fixture',windowIdentifier:'fixture',documentURL:'',windowKind:'native',elements:[],pageContentAvailable:true,truncated:false}:{launchAccepted:true,verified:false})));}}})) as any;
   modules.syncBuiltinESMExports();
   const store=new Store(":memory:");
   try{

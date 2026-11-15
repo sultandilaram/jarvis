@@ -1,0 +1,4 @@
+{
+  "schema": 1,
+  "pattern": "password|passcode|secret|token|credential|api.?key|private.?key|cvv|cvc|credit.?card|card.?number|payment|one.?time|otp|verification.?code|security.?code|bank.?account|routing.?number|iban|social.?security|ssn|seed.?phrase|recovery.?code|recovery.?phrase|backup.?code|(?:^|[^a-z])pin(?:$|[^a-z])"
+}
