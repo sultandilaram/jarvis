@@ -110,7 +110,8 @@ test("skills are bounded scoped instructions; script-like text cannot grant capa
   assert.equal(m.instructions("project"), "");
   assert.equal(m.snapshot().plugins.length, 0);
   const s = m.snapshot().skills[0];
-  m.saveSkill({ ...s, enabled: false });
+  assert.equal("text" in s, false);
+  m.enableSkill(s.id, false);
   assert.equal(m.instructions("desktop"), "");
   m.removeSkill(id);
   assert.equal(m.snapshot().skills.length, 0);

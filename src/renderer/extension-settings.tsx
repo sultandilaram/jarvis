@@ -79,10 +79,12 @@ export function SkillSettings({ state }: { state: Snapshot }) {
             <div className="extension-row-heading">
               <button
                 className="extension-name"
-                onClick={() => {
-                  setDraft({ ...s });
-                  setError("");
-                }}
+                disabled={busy || waiting}
+                onClick={() =>
+                  void act(async () => {
+                    setDraft(await window.jarvis.skillRead(s.id));
+                  })
+                }
               >
                 <span>
                   {s.name}
@@ -104,11 +106,7 @@ export function SkillSettings({ state }: { state: Snapshot }) {
                   disabled={busy || waiting}
                   onChange={(e) =>
                     void act(
-                      () =>
-                        window.jarvis.skillSave({
-                          ...s,
-                          enabled: e.target.checked,
-                        }),
+                      () => window.jarvis.skillEnable(s.id, e.target.checked),
                       e.target.checked
                         ? "Skill enabled for new task context."
                         : "Skill disabled.",

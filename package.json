@@ -1,6 +1,6 @@
 {
   "name": "jarvis-desktop",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "private": true,
   "description": "Local-first personal desktop agent with voice, controlled tools and an Android companion",
   "main": "dist/main.cjs",
@@ -29,7 +29,8 @@
     "source:export": "node scripts/export-source.mjs",
     "native:windows": "node scripts/windows/build-native.mjs",
     "package:windows": "npm run build && node scripts/windows/package.mjs",
-    "test:windows-native": "node scripts/windows/test-native.mjs"
+    "test:windows-native": "node scripts/windows/test-native.mjs",
+    "test:renderer": "npm run build && node scripts/test-renderer.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

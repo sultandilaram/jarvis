@@ -1,166 +1,45 @@
-JARVIS 0.8.1 — public research without repeated Autopilot approval
+JARVIS 0.8.3 — Mac, Windows and Android testing release
 
-Adds a separate, off-by-default public-research permission in Autonomy with
-native privacy confirmation. In Autopilot, browser.search opens fresh task tabs
-and uses words from the trusted operator request plus neutral research terms.
-Files, pages, account contents and model-generated jobs cannot extend query words.
-Requests mentioning recognized credential labels keep searches reviewed. Automatic
-redirects stop for manual inspection. This is a standing permission, not an
-English intent/cancellation parser.
-browser.follow reads observed simple public result links in fresh tabs.
-Unknown terms, owner-tab handover, account/login/settings destinations, generic
-clicking, input, forms and consequential actions retain review. Stop, corrections,
-permission changes and ancestor takeover/navigation revoke research; superseded
-loads cannot return unrelated content or restore revoked lineage.
-The browser tool contract is refreshed so old chats learn the new research route.
-No Android binary or public release is authorized by this source change.
+A larger update from the previous public release:
+- Configurable intelligence: Codex, OpenAI-compatible servers, Ollama, Anthropic
+  and Gemini task adapters, with separate tool/vision capability checks.
+- Scoped skills, built-in Gmail/Calendar plugins and approval-gated custom MCP
+  HTTP plugins. No external server code is silently installed or started.
+- Embedded multi-tab browser with manual takeover and reviewed handover.
+- Searchable settings pages, centered Voice interface and controlled subagents.
+- Autopilot for trusted routine actions; consequential actions retain review.
+- Native macOS accessibility interaction and reviewed window-image clicks.
+- Windows11 x64 native UI Automation, local offline wake, native Codex cache
+  discovery, voice and embedded browsing in a portable ZIP.
 
-JARVIS 0.8.0 — configurable intelligence and controlled app interaction
+Release fixes:
+- Read ordinary public search-result links without repeated approval, including
+  validated DuckDuckGo result wrappers. Only observed links on the active static
+  search page qualify; sensitive destinations, forms, private addresses, owner
+  tabs, expired snapshots, corrections and Stop keep their existing guards.
+- Bound live history and coalesce interface state delivery. Full local records
+  remain retained. Approval previews are never silently shortened: oversized
+  requests cannot be approved. Renderer recovery is bounded and does not replay
+  tasks or actions; inspect task status before retrying.
+- Skill toggles change only the enabled flag; the editor fetches full stored
+  instructions separately so display summaries cannot overwrite procedures.
+- Include the Windows ZIP alongside the Apple Silicon Mac DMG/ZIP and Android
+  APK. Every download is bound to the source commit by signed metadata. Existing
+  Mac and Android updater metadata stays compatible.
 
-- Add opt-in Autopilot for trusted routine actions; retain exact review for consequential effects.
-- Bind automatic navigation to exact operator-requested URLs, not retrieved or model-invented addresses.
-- Keep conditional requests behind review, revoke old destinations on corrections, and redact response-stream failures.
-- Add OpenAI-compatible, Ollama, Anthropic and Gemini task adapters alongside Codex.
-- Verify structured tool calling and optional vision separately before granting those capabilities.
-- Add scoped text skills and approval-gated custom MCP HTTP plugins.
-- Separate embedded, built-in and external plugins; manage Gmail and Calendar independently in Plugins.
-- Add a Browser workspace beside Voice and Chats, with up to 16 tabs and a separate persistent login session.
-- Bind browser actions to exact tabs and page snapshots; support manual takeover and reviewed handover.
-- Keep credential links and newly sensitive pages manual, with final page checks inside input dispatch.
-- Replace the settings accordion stack with searchable sidebar pages and narrow-screen navigation.
-- Extend macOS accessibility controls to ordinary apps and add reviewed window-image clicks.
-- Invalidate stale captures on Stop/correction; keep images out of local persistent history.
-- Preserve the Arc event-posting preflight and bounded sender drain from the retained 0.7.4 repair.
-
-Development candidate only: real installed Arc delivery and cross-app/visual acceptance
-remain required. Protocol fixtures do not establish real provider compatibility.
-No universal macOS app guarantee or unattended external-message permission is claimed.
-Task-provider choice does not change voice API billing. Existing Android Play Protect
-classification remains unresolved; public/APK publication stays held.
-See docs/ASSISTANT-SETUP.md for supported scope, data handling and limitations.
-
---- Previous candidate ---
-
-JARVIS 0.7.4 — check click permission and preserve the event sender
-
-- Check macOS event-posting access before queueing either mouse event.
-- Refuse unavailable access without sending input or requesting permissions automatically.
-- Keep the short-lived native sender alive for 500 milliseconds after one down/up pair.
-- Expose event-posting access separately from Accessibility in native permission diagnostics.
-- Preserve exact approval, complete page/context guards, hit testing and no automatic retries.
-
-The 0.7.3 installed test verified both fields and their live Draft updates, but
-Preview did not take effect. WindowServer rejected both events in the same
-millisecond the helper exited. A sender-lifetime race is a hypothesis, not a
-confirmed cause. This fix requires a new installed acceptance test; neither
-permission preflight nor event queueing establishes successful delivery.
-No real submission or public/APK release clearance is claimed. Play Protect
-remains unresolved.
-
---- Previous release ---
-
-JARVIS 0.7.3 — verify delayed input and click accessible browser controls
-
-- Send text once, then wait briefly for native value readback; verify page input effects separately.
-- Support a single pointer click on an observed, enabled browser button/link when AXPress is unavailable.
-- Bind the pointer approval to exact page/window/process/target and observed native bounds.
-- Recheck the complete page snapshot after focusing the approved window.
-- Recheck focused window, unchanged control, on-screen bounds and exact system hit test before dispatch.
-- Allow only the exact hit target or non-interactive presentation descendants; reject nested controls.
-- Refuse covered, moved, disabled or sensitive targets; refuse active mouse buttons/modifier keys.
-- Keep raw coordinates out of tool arguments and prevent caller overrides of observed native metadata.
-- Launch a stopped browser separately from opening its requested page; observe actual results.
-
-Every mutation still requires exact one-time approval. No automatic fallback after an
-uncertain accessibility press and no replay of unverified typing/submission.
-Real installed Arc click/submission acceptance remains pending. Custom controls,
-CAPTCHA, credentials and payments may require direct interaction. This is bounded
-accessibility and pointer control, not unrestricted DOM access.
-Android Play Protect remains unresolved; no public/APK release clearance is claimed.
-
---- Previous release ---
-
-JARVIS 0.7.2 — inspect and interact with accessible Arc pages
-
-- Request Chromium accessibility content before inspecting external browser pages.
-- Wait briefly for page exposure and bound deeper browser snapshots.
-- Mark shortened non-sensitive values as incomplete, including changes beyond the value limit.
-- Refuse browser mutations when page content is unavailable or the snapshot is truncated.
-- Include the page URL and window identity in approvals and recheck them natively before mutation.
-- Redact and block recognized password, payment, verification and secret input fields.
-- Preserve one-time approval for every click and text replacement, including form submissions.
-- Test the real native controller's field policy and compilation on macOS.
-
-This is accessibility-based interaction, not unrestricted browser DOM access.
-Custom controls, inaccessible frames, CAPTCHA, credentials and payments may need
-direct user interaction. Do not infer a successful submission from a click alone.
-Real Arc field, input-event, preview and submission acceptance checks remain required.
-The Android Play Protect appeal is unresolved; no public/APK release clearance is claimed.
-
---- Previous release ---
-
-JARVIS 0.7.1 — open pages in the requested browser
-
-- Approval-gated external opening in Arc, Safari, Chrome, Brave, Edge or Firefox.
-- Open an exact HTTP(S) URL or a granted local HTML file, without UI shortcuts.
-- Local HTML previews include a content hash; changed files invalidate approval.
-- Reject executable schemes, credential-bearing URLs and non-browser applications.
-- Report macOS launch acceptance separately from verified page loading.
-- External opening does not add DOM control or bypass folder grants.
-
-The Android 0.7.0 Play Protect warning remains unresolved; no clearance is claimed
-for this release. Its Google classification appeal was submitted separately.
-Existing signing, private credentials, approvals and sandbox boundaries remain.
-
---- Previous release ---
-
-JARVIS 0.7.0 — Google account connections
-
-- Separate Gmail and Google Calendar connections in desktop Settings.
-- System-browser desktop OAuth with PKCE and a temporary local callback.
-- Tokens encrypted using the existing Mac credential vault; no tokens on the phone.
-- Read-only connections by default, Gmail search/plain-text reading and primary-calendar events.
-- Optional email sending and event creation, each behind exact one-time action approval.
-- Account changes invalidate pending actions; isolated project workers cannot access accounts.
-- Connection cancellation, reconnect/disconnect controls and AI/history privacy disclosure.
-
-Google connections require your own Desktop OAuth client, enabled APIs, browser sign-in
-and consent. No Google account is bundled or connected automatically. Email/calendar
-content requested in a task may enter local history and the configured AI service.
-Existing-event edits/deletion, attachments and inbox/calendar monitoring are not added.
-Personal OAuth Testing refresh tokens expire after seven days. Public distribution
-requires a separate Google verification/privacy review. Real-account commissioning
-remains a user acceptance step after installing the feature.
-
-Source and release changes retain owner-review and exact-commit build approval.
-The Mac build is locally signed, not Apple notarized; five moderate development-
-packaging advisories remain under review. This is an experimental test release.
-
---- Previous release ---
-
-JARVIS 0.6.2 — local self-management preview
-
-- Preserve source files under scripts/release while excluding generated output.
-- Test maintenance initialization against the complete production source bundle.
-- Isolated source improvement jobs followed by separate review jobs.
-- Check receipts tied to the unchanged source snapshot.
-- Ordinary documentation merges after review; explicit owner approval for sensitive changes.
-- Source history remains separate from the installed app; local mode does not publish to GitHub.
-- Signed GitHub release discovery, artifact verification and approved Mac installation.
-- App identity and the fixed credential vault are checked before installation.
-- Failed launch checks stop the owned new app and restore the previous app.
-- Fresh-checkout runtime assets and UUID-safe dependency license packaging.
-- Public source export, DMG packaging and locally signed release candidate tools.
-
-GitHub maintenance requires separate proposer/reviewer identities and enforced owner
-review and CI rules. Release publication requires a separate exact-commit owner
-approval; configuration alone does not publish a release.
-The current Mac build uses a local certificate, not Apple notarization. Android updates use
-normal Android installation approval. Five moderate development-packaging advisories
-remain under review; this is an experimental test release.
-
-0.8.0 candidate additions (not installed): opt-in specialist subagents with
-bounded read-only context, concurrent analysis/planning/review, durable findings
-and owner cancellation in Jobs. Workers use the selected task provider/model;
-all actions and approvals remain with the parent. Additional inference usage
-applies. No automatic worker restart or side-effect replay.
+Testing limitations:
+- Mac uses the owner's local signing identity; it is not Apple Developer ID
+  signed or notarized. Windows has no publisher certificate. Keep platform
+  security protections enabled and report installation blocks.
+- Android uses the existing app signing identity. Google Play Protect classified
+  an earlier APK as harmful; its appeal remains unresolved. This APK is provided
+  for testing at the owner's request, not as evidence of Google's clearance.
+- Windows project command execution, source maintenance/release builds,
+  external-browser control and automatic updates remain unavailable.
+- No universal app-control guarantee is claimed. Browser forms, account actions,
+  external messages and other consequential changes still require approval.
+- Voice API use has separate provider billing. Local wake uses no idle API call.
+- Third-party testers configure their own credentials and remote pairing/hosting;
+  owner API keys, Firebase push keys and tunnel credentials are not bundled.
+- Automated checks and owner physical tests have different coverage; see
+  WINDOWS.md and ASSISTANT-SETUP.md for supported capabilities and limits.

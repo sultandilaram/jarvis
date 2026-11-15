@@ -55,3 +55,10 @@ state cannot merge locally. Publication still requires approval, and trusted
 GitHub Actions must pass the full test suite on the exact PR commit before the
 separate GitHub reviewer approves or any remote merge occurs. A pending hosted
 test is never represented as a successful local test.
+
+Release builds from0.8.3 produce Mac DMG/ZIP, Windows x64 ZIP and Android APK
+from the same checked commit. They require .NET SDK10.0.404 (JARVIS_DOTNET, the
+private windows-toolchain cache, or dotnet on PATH). Signed metadata keeps the
+legacy Mac/Android assets map and binds the extra Windows download in downloads.
+The Windows automatic updater remains disabled. APK availability does not clear
+the unresolved Play Protect classification; disclose that status in test releases.

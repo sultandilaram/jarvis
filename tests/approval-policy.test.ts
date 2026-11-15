@@ -248,8 +248,85 @@ test("autopilot navigation is bound to exact operator targets, never model-gener
   );
 });
 
-test('search uses the static results endpoint and treats metacharacters only as query data',()=>{
- const query='blue & red # docs? ia=web';const url=new URL(searchURL(query));
- assert.equal(url.origin,'https://html.duckduckgo.com');assert.equal(url.pathname,'/html/');
- assert.deepEqual([...url.searchParams],[['q',query]]);assert.equal(url.hash,'');
+test("search uses the static results endpoint and treats metacharacters only as query data", () => {
+  const query = "blue & red # docs? ia=web";
+  const url = new URL(searchURL(query));
+  assert.equal(url.origin, "https://html.duckduckgo.com");
+  assert.equal(url.pathname, "/html/");
+  assert.deepEqual([...url.searchParams], [["q", query]]);
+  assert.equal(url.hash, "");
+});
+
+test("only static-provider observed wrappers resolve to ordinary public destinations", async () => {
+  const { observedResearchDestination, searchURL } =
+    await import("../src/main/desktop/approval-policy.ts");
+  const source = searchURL("IANA example domains"),
+    target = "https://www.iana.org/help/example-domains";
+  const wrap = (u: string) =>
+    "https://duckduckgo.com/l/?uddg=" +
+    encodeURIComponent(u) +
+    "&rut=" +
+    "a".repeat(64);
+  assert.equal(
+    observedResearchDestination(wrap(target), source, "IANA example domains"),
+    target,
+  );
+  assert.equal(
+    observedResearchDestination(
+      wrap(target).replace(
+        "https://duckduckgo.com/",
+        "https://html.duckduckgo.com/",
+      ),
+      source,
+      "IANA example domains",
+    ),
+    target,
+  );
+  for (const destination of [
+    "http://example.com/",
+    "https://localhost/",
+    "https://127.0.0.1/",
+    "https://example.com/login",
+    "https://example.com/pay",
+    "https://example.com/?token=private",
+    "https://user:pass@example.com/",
+    "https://example.com/#private",
+    "https://example.com:8443/",
+    "https://example.com/delete/1",
+    "https://example.com/" + "x".repeat(32),
+    wrap(target),
+  ]) {
+    const href = wrap(destination);
+    assert.equal(
+      observedResearchDestination(href, source, "IANA example domains"),
+      href,
+      destination,
+    );
+  }
+  for (const href of [
+    wrap(target).replace("duckduckgo.com", "duckduckgo.com.evil.invalid"),
+    wrap(target).replace("https:", "http:"),
+    wrap(target) + "&uddg=" + encodeURIComponent(target),
+    wrap(target) + "&next=x",
+    wrap(target) + "#x",
+    wrap(target).replace("/l/", "/redirect/"),
+    wrap(target).replace(
+      "&rut=" + "&".repeat(0) + "a".repeat(64),
+      "&rut=not-a-hash",
+    ),
+  ])
+    assert.equal(
+      observedResearchDestination(href, source, "IANA example domains"),
+      href,
+      href,
+    );
+  for (const origin of [
+    "https://example.com/",
+    searchURL("different query"),
+    source + "&extra=1",
+  ])
+    assert.equal(
+      observedResearchDestination(wrap(target), origin, "IANA example domains"),
+      wrap(target),
+    );
 });

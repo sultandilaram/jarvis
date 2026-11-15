@@ -13,7 +13,7 @@ const config=await readFile('src/shared/release-config.ts','utf8');
 const publicKey=JSON.parse(config.match(/releasePublicKey = (".*");/)?.[1]||'null');
 if(!publicKey)throw Error('Pinned public release key is missing.');
 const asset=async(name)=>{const p=join(directory,name),s=await stat(p);return {name,size:s.size,sha256:createHash('sha256').update(await readFile(p)).digest('hex')};};
-const manifest={schema:1,repository:'sultandilaram/jarvis',version,commit,publishedAt:new Date().toISOString(),dataSchema:1,notes:await readFile(join(directory,'RELEASE-NOTES.txt'),'utf8'),assets:{macArm64:await asset(`JARVIS-macOS-AppleSilicon-${version}.zip`),android:await asset(`JARVIS-Android-${version}.apk`),macDmg:await asset(`JARVIS-macOS-AppleSilicon-${version}.dmg`)}};
+const manifest={schema:1,repository:'sultandilaram/jarvis',version,commit,publishedAt:new Date().toISOString(),dataSchema:1,notes:await readFile(join(directory,'RELEASE-NOTES.txt'),'utf8'),assets:{macArm64:await asset(`JARVIS-macOS-AppleSilicon-${version}.zip`),android:await asset(`JARVIS-Android-${version}.apk`),macDmg:await asset(`JARVIS-macOS-AppleSilicon-${version}.dmg`)},downloads:{windowsX64:await asset(`JARVIS-Windows-x64-${version}.zip`)}};
 if(manifest.notes.length>8000)throw Error('Release notes exceed limit.');
 const bytes=Buffer.from(JSON.stringify(manifest,null,2)+'\n');
 const signature=sign(null,bytes,key);

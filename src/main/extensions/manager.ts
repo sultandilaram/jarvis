@@ -16,7 +16,7 @@ export type Skill = {
   enabled: boolean;
 };
 export type ExtensionState = {
-  skills: Skill[];
+  skills: Omit<Skill, "text">[];
   plugins: {
     id: string;
     name: string;
@@ -115,7 +115,7 @@ export class ExtensionManager extends EventEmitter {
   }
   snapshot(): ExtensionState {
     return {
-      skills: this.skills.map((s) => ({ ...s })),
+      skills: this.skills.map(({ text, ...summary }) => summary),
       plugins: this.plugins.map((p) => ({
         id: p.id,
         name: p.name,
@@ -139,6 +139,19 @@ export class ExtensionManager extends EventEmitter {
       ) +
       "\nEnd of skill context. Use only the actual available JARVIS tools and broker policy."
     );
+  }
+  readSkill(id: unknown): Skill {
+    const skill =
+      typeof id === "string"
+        ? this.skills.find((item) => item.id === id)
+        : undefined;
+    if (!skill) throw Error("Unknown skill.");
+    return { ...skill };
+  }
+  enableSkill(id: unknown, enabled: unknown) {
+    if (typeof enabled !== "boolean")
+      throw Error("Choose whether to enable the skill.");
+    return this.saveSkill({ ...this.readSkill(id), enabled });
   }
   saveSkill(value: unknown) {
     const s = validateSkill(value),

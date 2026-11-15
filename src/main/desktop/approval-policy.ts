@@ -145,6 +145,43 @@ export function routineResearchNavigation(raw: string) {
     return false;
   }
 }
+
+// Only unwrap the static search provider's observed result links. The destination
+// still passes the ordinary research policy; this never follows the redirect.
+export function observedResearchDestination(
+  href: string,
+  sourceURL: string,
+  query: string,
+): string {
+  try {
+    if (sourceURL !== searchURL(query)) return href;
+    const link = new URL(href);
+    if (
+      link.protocol !== "https:" ||
+      link.username ||
+      link.password ||
+      link.port ||
+      link.hash ||
+      !["duckduckgo.com", "html.duckduckgo.com"].includes(link.hostname) ||
+      link.pathname !== "/l/"
+    )
+      return href;
+    const keys = [...link.searchParams.keys()];
+    if (
+      keys.some((key) => !["uddg", "rut"].includes(key)) ||
+      link.searchParams.getAll("uddg").length !== 1 ||
+      link.searchParams.getAll("rut").length > 1
+    )
+      return href;
+    const tracking = link.searchParams.get("rut");
+    if (tracking !== null && !/^[a-f0-9]{64}$/.test(tracking)) return href;
+    const target = link.searchParams.get("uddg")!;
+    if (!routineResearchNavigation(target)) return href;
+    return new URL(target).href;
+  } catch {
+    return href;
+  }
+}
 export function researchQueryWithinRequest(
   query: unknown,
   operatorText: string,

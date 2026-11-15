@@ -77,6 +77,7 @@ export type RemoteState = {
   pending: { id: string; name: string; code: string; expires: number } | null;
 };
 export type Snapshot = {
+  interfaceNotice?: string;
   subagents?: import("../main/delegation").SubagentRun[];
   pluginCatalog?: import("../main/extensions/catalog").CatalogEntry[];
   browser?: import("../main/desktop/browser").BrowserState;
@@ -158,6 +159,8 @@ export type Api = {
   ): Promise<{ visionVerified: boolean; note: string }>;
   providerCancelTest(): Promise<void>;
   skillSave(value: unknown): Promise<string>;
+  skillRead(id: string): Promise<import("../main/extensions/manager.ts").Skill>;
+  skillEnable(id: string, enabled: boolean): Promise<string>;
   skillImport(): Promise<{
     name: string;
     text: string;

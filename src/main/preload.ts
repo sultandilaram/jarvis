@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld("jarvis", {
   providerTestVision: (kind:string) => invoke("providerTestVision",kind),
   providerCancelTest: () => invoke("providerCancelTest"),
   skillSave: (value:unknown) => invoke("skillSave",value),
+  skillRead: (id:string) => invoke("skillRead",id),
+  skillEnable: (id:string,enabled:boolean) => invoke("skillEnable",id,enabled),
   skillImport: () => invoke("skillImport"),
   skillRemove: (id:string) => invoke("skillRemove",id),
   pluginSave: (value:unknown) => invoke("pluginSave",value),
@@ -68,7 +70,7 @@ contextBridge.exposeInMainWorld("jarvis", {
   },
   voiceEvent: (event: unknown) => invoke("voiceEvent", event),
   voiceDiagnostics: () => invoke("voiceDiagnostics"),
-  snapshot: () => invoke("snapshot"),
+  snapshot: async () => JSON.parse(await invoke("snapshot")),
   send: (text: string) => invoke("send", text),
   stop: () => invoke("stop"),
   stopCurrent: () => invoke("stopCurrent"),
@@ -86,7 +88,10 @@ contextBridge.exposeInMainWorld("jarvis", {
   forget: (id: string) => invoke("forget", id),
   fullscreen: () => invoke("fullscreen"),
   onState: (callback: Function) => {
-    const listener = (_: unknown, state: unknown) => callback(state);
+    const listener = (_: unknown, state: unknown) => {
+      if (typeof state !== "string" || state.length > 4 * 1024 * 1024) return;
+      try { callback(JSON.parse(state)); } catch { /* A malformed update cannot authorize anything. */ }
+    };
     ipcRenderer.on("jarvis:state", listener);
     return () => ipcRenderer.removeListener("jarvis:state", listener);
   },

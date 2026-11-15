@@ -4,9 +4,14 @@ A local-first, voice-centered personal desktop agent with an Android companion.
 Codex performs task reasoning; JARVIS provides persistent jobs, controlled desktop
 and browser tools, isolated project workspaces, approvals and phone coordination.
 
-**Status: experimental macOS Apple Silicon / Android test release [0.6.2](https://github.com/sultandilaram/jarvis/releases/tag/v0.6.2), now published.** Local self-maintenance and signed update support are implemented in 0.6.2;
-unattended GitHub maintenance requires separate configured GitHub Apps and branch
-protections. Public release infrastructure is still being commissioned.
+**Status: experimental Mac Apple Silicon, Windows11 x64 and Android test builds.**
+Get packaged downloads and version-specific test notes from
+[GitHub Releases](https://github.com/sultandilaram/jarvis/releases).
+Mac downloads use a local signing identity and are not Apple-notarized; Windows
+builds have no publisher certificate. An earlier Android APK was classified as
+harmful by Play Protect and its appeal remains unresolved. Keep platform security
+enabled and report blocks; availability of an APK is not Google clearance.
+
 This independent project is not affiliated with Marvel or OpenAI.
 
 ## Capabilities
@@ -18,7 +23,10 @@ This independent project is not affiliated with Marvel or OpenAI.
 - Granted-file and public-page monitors that queue follow-up jobs.
 - QR-paired Android voice, incoming calls and Mac-first task notifications.
 
-The Mac must remain logged in, awake, online and running JARVIS. Browser research
+The desktop host must remain logged in, awake, online and running JARVIS.
+Windows has native control and local wake; project commands, repository
+self-maintenance and automatic Windows updates are unavailable. See
+[Windows setup](docs/WINDOWS.md). Browser research
 uses JARVIS's controlled browser. Email/calendar services are not preconfigured.
 
 ## Development
@@ -92,8 +100,8 @@ self-hosted runner is needed. Consuming an update remains a separate user decisi
 
 ## Intelligence, autonomy and extensions
 
-The 0.8 development candidate adds configurable task providers, scoped skills,
+The 0.8 series adds configurable task providers, scoped skills,
 custom MCP HTTP plugins, built-in Gmail/Calendar plugins, a multi-tab embedded
 Browser workspace and searchable settings. See
 [Assistant setup](docs/ASSISTANT-SETUP.md) for supported protocols, approval rules,
-privacy, desktop-control limits and the remaining acceptance/release gates.
+privacy, desktop-control limits and platform-specific setup.

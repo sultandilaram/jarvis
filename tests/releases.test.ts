@@ -55,3 +55,9 @@ test('GitHub API checks request JSON while release assets request binary media',
  await githubBytes('https://github.com/sultandilaram/jarvis/releases/download/v0.6.1/release.json',100);
  assert.deepEqual(seen,[{host:'api.github.com',accept:'application/vnd.github+json'},{host:'github.com',accept:'application/octet-stream'}]);
 });
+
+test('Windows download is signed without changing legacy Mac and Android asset keys',()=>{
+ const m:any=fixture();m.downloads={windowsX64:asset('JARVIS-Windows-x64-0.6.1.zip')};
+ const verified=check(m);assert.deepEqual(Object.keys(verified.assets),['macArm64','android']);assert.equal(verified.downloads?.windowsX64.name,'JARVIS-Windows-x64-0.6.1.zip');
+ for(const downloads of [{linux:asset('anything')},{windowsX64:asset('../escape.zip')},{windowsX64:{...m.downloads.windowsX64,size:2**40}},{windowsX64:{...m.downloads.windowsX64,sha256:'bad'}},[],null])assert.throws(()=>check({...m,downloads}));
+});

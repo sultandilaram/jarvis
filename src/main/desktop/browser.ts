@@ -9,6 +9,7 @@ import { randomUUID } from "node:crypto";
 import type { ActionPlan } from "./broker.ts";
 import {
   authorizedNavigation,
+  observedResearchDestination,
   researchQueryWithinRequest,
   routineResearchNavigation,
   searchURL,
@@ -574,17 +575,35 @@ export class ControlledBrowser extends EventEmitter {
   }
   private async load(t: Tab, url: string) {
     try {
-      const w=this.wc(t);
+      const w = this.wc(t);
       await w.loadURL(url);
       // loadURL may resolve before subresources finish. Inspection requires a
       // settled page; all original epoch/URL guards still run after this wait.
-      if(w.isLoading())await new Promise<void>((resolve,reject)=>{
-        const cleanup=()=>{clearTimeout(timer);w.removeListener("did-stop-loading",ready);w.removeListener("destroyed",destroyed);};
-        const ready=()=>{if(!w.isDestroyed()&&!w.isLoading()){cleanup();resolve();}};
-        const destroyed=()=>{cleanup();reject(Error("Browser tab closed during navigation."));};
-        const timer=setTimeout(()=>{cleanup();reject(Error("Browser loading did not settle within 15 seconds."));},15000);
-        w.on("did-stop-loading",ready);w.once("destroyed",destroyed);ready();
-      });
+      if (w.isLoading())
+        await new Promise<void>((resolve, reject) => {
+          const cleanup = () => {
+            clearTimeout(timer);
+            w.removeListener("did-stop-loading", ready);
+            w.removeListener("destroyed", destroyed);
+          };
+          const ready = () => {
+            if (!w.isDestroyed() && !w.isLoading()) {
+              cleanup();
+              resolve();
+            }
+          };
+          const destroyed = () => {
+            cleanup();
+            reject(Error("Browser tab closed during navigation."));
+          };
+          const timer = setTimeout(() => {
+            cleanup();
+            reject(Error("Browser loading did not settle within 15 seconds."));
+          }, 15000);
+          w.on("did-stop-loading", ready);
+          w.once("destroyed", destroyed);
+          ready();
+        });
     } catch {
       throw Error(
         "Browser navigation did not complete. Inspect this tab before retrying; no browser security warning was bypassed.",
@@ -765,9 +784,17 @@ export class ControlledBrowser extends EventEmitter {
       );
       if (!link?.href)
         throw Error("Choose an observed page link, not a button or form.");
-      const url = safeURL(link.href);
       const authority = source.research;
       const research = this.researchActive(sourceTab, authority);
+      const url = safeURL(
+        research && authority
+          ? observedResearchDestination(
+              link.href,
+              this.wc(sourceTab).getURL(),
+              authority.query,
+            )
+          : link.href,
+      );
       const routine = research && routineResearchNavigation(url);
       const verifySource = () => {
         this.automatic(sourceTab);

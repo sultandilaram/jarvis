@@ -440,6 +440,7 @@ function App() {
           </div>
         </header>
         <div id="voice-playback" />
+        {state.interfaceNotice && <p className="workspace-error" role="status">{state.interfaceNotice}</p>}
         {(error || state.error) && (
           <div className="workspace-error error" role="alert">
             <div>
@@ -1300,6 +1301,7 @@ function ApprovalCard({
 }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const questions = a.method === "item/tool/requestUserInput";
+  const reviewUnavailable = a.params.reviewUnavailable === true;
   return (
     <div className="approval-card">
       <Shield size={18} />
@@ -1309,7 +1311,7 @@ function ApprovalCard({
           : a.params.title || "Your approval is needed"}
       </h3>
       <div className="approval-body">
-        {questions ? (
+        {reviewUnavailable ? <p role="alert">This request is too large to review safely. Decline it and ask for a smaller, specific action.</p> : questions ? (
           (a.params.questions || []).map((q: any) => (
             <label key={q.id}>
               {q.question}
@@ -1343,7 +1345,7 @@ function ApprovalCard({
         {questions ? (
           <button
             className="subtle"
-            disabled={(a.params.questions || []).some(
+            disabled={reviewUnavailable || (a.params.questions || []).some(
               (q: any) => !answers[q.id]?.trim(),
             )}
             onClick={() => void run(() => window.jarvis.answer(a.id, answers))}
@@ -1360,6 +1362,7 @@ function ApprovalCard({
             </button>
             <button
               className="approve"
+              disabled={reviewUnavailable}
               onClick={() => void run(() => window.jarvis.approve(a.id, true))}
             >
               Approve once

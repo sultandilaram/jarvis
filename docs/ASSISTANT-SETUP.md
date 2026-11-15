@@ -162,11 +162,13 @@ before retrying; cancellation cannot undo an interaction already sent.
 
 Existing paired phones keep ordinary workflows. Older clients cannot approve a
 visual action whose image they cannot display: approve on the Mac instead.
-Updated mobile source supports image previews, but Android distribution remains
-on hold while the existing Play Protect classification appeal is unresolved.
+Updated mobile source supports image previews. The 0.8.3 testing release includes
+an APK at the owner's request despite an unresolved Play Protect classification
+of an earlier APK. It is not Google clearance; keep protections enabled and
+report installation blocks.
 
-0.8.0 is a development candidate until independent review, trusted CI, owner review,
-exact-commit signing approval and installed acceptance are completed. Mock protocol
+Each release requires independent review, trusted CI, owner review,
+exact-commit signing approval and installed acceptance. Mock protocol
 checks and rendered UI previews do not establish installed desktop behavior or
 compatibility with real third-party accounts/models/apps.
 
