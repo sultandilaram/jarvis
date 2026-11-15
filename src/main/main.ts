@@ -1,3 +1,5 @@
+import { rendererWire, rendererApprovalAllowed, RendererPublisher } from "./renderer-state.ts";
+import { RendererRecovery } from "./renderer-recovery.ts";
 import { GoogleAccounts, type GoogleState } from "./integrations/google.ts";
 import { parseGoogleClient } from "./integrations/google-oauth.ts";
 import { LocalReleases, validateBuildState } from "./local-releases.ts";
@@ -96,6 +98,9 @@ const updateNotifications = new Map<string, Notification>();
 let watchTimer: ReturnType<typeof setInterval>;
 let localVoiceActive = false;
 let isQuitting = false;
+let rendererPublisher: RendererPublisher | undefined;
+let rendererRecovery: RendererRecovery | undefined;
+let interfaceNotice: string | undefined;
 function loginState() {
   if (!["darwin","win32"].includes(process.platform))
     return { enabled: false, status: "unsupported" };
@@ -109,6 +114,7 @@ function sourcePreview(base64:string) {
 function snapshot() {
   return {
     ...agent.snapshot(),
+    interfaceNotice,
     google: google?.snapshot(),
     providers: providers?.snapshot(),
     extensions: extensions?.snapshot(),
@@ -151,7 +157,7 @@ function showWindow() {
 function publishBackground() {
   if (isQuitting) return;
   if (window && !window.isDestroyed())
-    window.webContents.send("jarvis:state", snapshot());
+    rendererPublisher?.queue();
   if (tray) refreshTray();
 }
 function setLogin(enabled: boolean) {
@@ -847,6 +853,7 @@ app.whenReady().then(async () => {
   });
   wake.on("status", publishBackground);
   wake.on("wake", () => {
+    if (!rendererPublisher?.ready) return;
     showWindow();
     window.webContents.send("jarvis:wake");
   });
@@ -877,7 +884,24 @@ app.whenReady().then(async () => {
     wake.setSystemPaused(suspended);
   });
   window.on("resize",()=>desktop.browser.waitForLayout());
-  window.webContents.on("render-process-gone",()=>desktop.browser.surface(false));
+  rendererPublisher = new RendererPublisher(
+    () => rendererWire(snapshot()),
+    wire => { if (!isQuitting && !window.isDestroyed() && !window.webContents.isDestroyed()) window.webContents.send("jarvis:state", wire); },
+    () => { interfaceNotice = "The interface could not refresh. Your work is retained; reopen the window before retrying an action."; },
+  );
+  rendererRecovery = new RendererRecovery(
+    () => { if (!isQuitting && !window.isDestroyed()) void window.loadFile(join(__dirname, "index.html")).catch(() => {}); },
+    () => { if (!isQuitting) void dialog.showMessageBox(window, {type:"error", buttons:["OK"], message:"JARVIS could not restore its interface", detail:"The interface stopped repeatedly. Quit and reopen JARVIS. Task records are retained; do not repeat an action until you check its status."}); },
+  );
+  window.webContents.on("render-process-gone", (_event, details) => {
+    rendererPublisher?.pause(); desktop.browser.surface(false);
+    if (isQuitting) return;
+    try { writeFileSync(join(data, "renderer-health.json"), JSON.stringify({version:app.getVersion(),reason:details.reason,exitCode:details.exitCode,at:new Date().toISOString()}), {mode:0o600}); } catch {}
+    localVoiceActive = false; wake.setVoiceActive(!!remote?.voiceOwner);
+    interfaceNotice = "The interface restarted. Task records are retained; check the current task before retrying an action.";
+    rendererRecovery?.gone(details.reason);
+  });
+  window.on("closed", () => { rendererPublisher?.pause(); rendererRecovery?.close(); });
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event, url) => {
     if (url !== window.webContents.getURL()) event.preventDefault();
@@ -906,14 +930,15 @@ app.whenReady().then(async () => {
       permission === "media" &&
       details.mediaType === "audio",
   );
+  agent.approvalReviewAllowed = id => rendererApprovalAllowed([...agent.approvals.values()], id);
   agent.on("state", (state) => {
     if (isQuitting) return;
     watches?.resolveAttention(state);
     remote?.observe(state);
     if (!window.isDestroyed())
-      window.webContents.send("jarvis:state", snapshot());
+      rendererPublisher?.queue();
   });
-  handle("snapshot", snapshot);
+  handle("snapshot", () => rendererWire(snapshot()));
   handle("desktopScreenPermissions",()=>{if(process.platform !== "darwin")throw Error("Window capture is unavailable on this platform.");return shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture");});
   handle("desktopCheckAccess",async()=>{
     const result=await nativeCall(desktop.helper,{action:"permissions"},new AbortController().signal);
@@ -924,6 +949,8 @@ app.whenReady().then(async () => {
   agent.skillContext=()=>extensions.instructions(agent.executionJob?.profile||"desktop");
   const extensionIdle=()=>{if(agent.active||agent.busy||agent.stopping||jobs?.current())throw Error("Finish or pause the current task before changing skills or plugins.");};
   handle("skillSave",(value:unknown)=>{extensionIdle();return extensions.saveSkill(value);});
+  handle("skillRead",(id:unknown)=>extensions.readSkill(id));
+  handle("skillEnable",(id:unknown,enabled:unknown)=>{extensionIdle();return extensions.enableSkill(id,enabled);});
   handle("skillRemove",(id:unknown)=>{extensionIdle();extensions.removeSkill(id);});
   handle("skillImport",async()=>{
     extensionIdle();const chosen=await dialog.showOpenDialog(window,{title:"Import skill instructions",properties:["openFile"],filters:[{name:"Skill text",extensions:["md","txt"]}]});
@@ -1023,6 +1050,7 @@ app.whenReady().then(async () => {
     if(existsSync(githubKeyPath))unlinkSync(githubKeyPath);githubMaintenance.tokens.clear();publishBackground();
   });
   handle("rendererReady", () => {
+    rendererPublisher?.resume();
   // An update is healthy only after main initialization and the real renderer load.
   const healthArg=process.argv.find(a=>a.startsWith("--update-health="))?.slice(16);
   const healthNonce=process.argv.find(a=>a.startsWith("--update-nonce="))?.slice(15);

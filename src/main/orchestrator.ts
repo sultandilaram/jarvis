@@ -39,6 +39,7 @@ export class Orchestrator extends EventEmitter {
   jobSnapshot?: () => import("./jobs.ts").Job[];
   subagentSnapshot?: () => import("./delegation.ts").SubagentRun[];
   beforeTool?: () => void;
+  approvalReviewAllowed?: (id: string | number) => boolean;
   status: Status = "connecting";
   error: string | null = null;
   model = "";
@@ -533,6 +534,8 @@ export class Orchestrator extends EventEmitter {
     if (!a || !/requestApproval$/.test(a.method))
       throw new Error("This approval has expired.");
     if (this.stopping) throw new Error("Cancellation is in progress.");
+    if (accept && this.approvalReviewAllowed?.(id) === false)
+      throw new Error("This request is too large to review safely. Decline it and request a smaller action.");
     const available = a.params.availableDecisions as unknown[] | undefined;
     if (accept && available && !available.includes("accept"))
       throw new Error("This action does not offer one-time approval.");
@@ -568,6 +571,8 @@ export class Orchestrator extends EventEmitter {
       this.stopping
     )
       throw Error("This question has expired.");
+    if (this.approvalReviewAllowed?.(id) === false)
+      throw Error("This question is too large to display safely. Stop and request a smaller question.");
     const questions = a.params.questions;
     if (
       !Array.isArray(questions) ||

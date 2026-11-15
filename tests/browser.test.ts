@@ -1397,17 +1397,105 @@ test("nested and encoded credential URLs are guarded by the same host and actual
   );
 });
 
-test('navigation waits for resource completion and still rejects navigation changes during that wait',async()=>{
- for(const changed of [false,true]){
-  const f=fixture();try{
-   const tabId=f.browser.create(false),w=f.views()[0].webContents;
-   const original=w.loadURL.bind(w);w.loadURL=async(url:string)=>{await original(url);w.loading=true;};
-   let settled=false;const pending=f.broker.execute('browser.open',{tabId,url:'https://example.com/first'}).then(r=>{settled=true;return r;});
-   await tick();assert.equal(settled,false);assert.equal(w.loading,true);
-   if(changed){w.emit('did-start-navigation',{},'https://example.com/changed',false,true);w.url='https://example.com/changed';}
-   w.loading=false;w.emit('did-stop-loading');
-   const r=await pending;assert.equal(r.success,!changed);
-   if(changed)assert.match(JSON.stringify(r),/superseded/);
-  }finally{f.browser.destroy();}
- }
+test("navigation waits for resource completion and still rejects navigation changes during that wait", async () => {
+  for (const changed of [false, true]) {
+    const f = fixture();
+    try {
+      const tabId = f.browser.create(false),
+        w = f.views()[0].webContents;
+      const original = w.loadURL.bind(w);
+      w.loadURL = async (url: string) => {
+        await original(url);
+        w.loading = true;
+      };
+      let settled = false;
+      const pending = f.broker
+        .execute("browser.open", { tabId, url: "https://example.com/first" })
+        .then((r) => {
+          settled = true;
+          return r;
+        });
+      await tick();
+      assert.equal(settled, false);
+      assert.equal(w.loading, true);
+      if (changed) {
+        w.emit(
+          "did-start-navigation",
+          {},
+          "https://example.com/changed",
+          false,
+          true,
+        );
+        w.url = "https://example.com/changed";
+      }
+      w.loading = false;
+      w.emit("did-stop-loading");
+      const r = await pending;
+      assert.equal(r.success, !changed);
+      if (changed) assert.match(JSON.stringify(r), /superseded/);
+    } finally {
+      f.browser.destroy();
+    }
+  }
+});
+
+test("observed static search wrappers follow the direct destination without redirect authority", async () => {
+  const f = fixture();
+  try {
+    f.browser.researchText = () => "Research blue whales";
+    f.browser.publicResearchAllowed = () => true;
+    const searched = result(
+      await f.broker.execute("browser.search", { query: "blue whales" }),
+    );
+    const source = f.views()[0].webContents;
+    const href =
+      "https://duckduckgo.com/l/?uddg=" +
+      encodeURIComponent("https://example.org/whales") +
+      "&rut=" +
+      "b".repeat(64);
+    source.inspection = {
+      url: source.url,
+      title: "Results",
+      text: "Whales",
+      elements: [
+        {
+          id: "0",
+          tag: "A",
+          type: "",
+          label: "Whales",
+          href,
+          value: "",
+          sensitive: false,
+        },
+      ],
+    };
+    const read = result(
+      await f.broker.execute("browser.read", { tabId: searched.tabId }),
+    );
+    const plan = await f.browser.plan("browser.follow", {
+      snapshotId: read.snapshotId,
+      elementId: "0",
+    });
+    assert.equal(plan.routine, "browse");
+    assert.equal(plan.preview.url, "https://example.org/whales");
+    const followed = await f.broker.execute("browser.follow", {
+      snapshotId: read.snapshotId,
+      elementId: "0",
+    });
+    assert(followed.success);
+    assert.equal(f.broker.pending.size, 0);
+    assert.equal(
+      f.views().at(-1)!.webContents.getURL(),
+      "https://example.org/whales",
+    );
+    const stale = await f.browser.plan("browser.follow", {
+      snapshotId: read.snapshotId,
+      elementId: "0",
+    });
+    f.browser.stop();
+    await assert.rejects(stale.run(new AbortController().signal));
+    assert.equal(f.views().at(-1)!.webContents.getURL(), "about:blank");
+  } finally {
+    f.browser.destroy();
+  }
 });

@@ -1,7 +1,7 @@
 import { verify, createHash } from 'node:crypto';
 import { releaseRepository, releasePublicKey, releaseDataSchema } from '../shared/release-config.ts';
 export type ReleaseAsset = { name: string; sha256: string; size: number };
-export type ReleaseManifest = { schema: 1; repository: string; version: string; commit: string; publishedAt: string; notes: string; dataSchema: number; assets: { macArm64: ReleaseAsset; android: ReleaseAsset; macDmg?: ReleaseAsset } };
+export type ReleaseManifest = { schema: 1; repository: string; version: string; commit: string; publishedAt: string; notes: string; dataSchema: number; assets: { macArm64: ReleaseAsset; android: ReleaseAsset; macDmg?: ReleaseAsset }; downloads?: { windowsX64: ReleaseAsset } };
 export function versionParts(value: string) {
   if(!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(value)) throw Error('Only stable x.y.z releases are supported.');
   const parts=value.split('.').map(Number);
@@ -25,7 +25,15 @@ export function verifyManifest(bytes: Buffer, signature: Buffer, current: string
     const a=m.assets?.[platform];
     if(!a || !/^[a-f0-9]{64}$/.test(a.sha256) || !Number.isSafeInteger(a.size) || a.size<=0 || a.size>max || a.name!==`JARVIS-${platform==='android'?'Android':'macOS-AppleSilicon'}-${m.version}.${ext}`) throw Error('Release artifact metadata is invalid.');
   }
+  if(m.downloads!==undefined) {
+    if(!m.downloads || typeof m.downloads!=='object' || Array.isArray(m.downloads) || Object.keys(m.downloads).length!==1 || !Object.hasOwn(m.downloads,'windowsX64'))throw Error('Unknown additional release download.');
+    const a=m.downloads.windowsX64;
+    if(!a || a.name!==`JARVIS-Windows-x64-${m.version}.zip` || !/^[a-f0-9]{64}$/.test(a.sha256) || !Number.isSafeInteger(a.size) || a.size<=0 || a.size>1024*1024*1024)throw Error('Windows release download metadata is invalid.');
+  }
   return m;
+}
+export function releaseAssets(manifest: ReleaseManifest): ReleaseAsset[] {
+  return [...Object.values(manifest.assets), ...Object.values(manifest.downloads || {})];
 }
 export function assetURL(version: string,name: string) {
   versionParts(version);

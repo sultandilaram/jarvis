@@ -1,8 +1,15 @@
 # Windows 11 x64
 
-Windows support is under development. A cross-compiled archive is a build
-candidate, not a verified tester release. Native control and offline wake-word
-acceptance are required before a Windows artifact enters `deliverables`.
+This is an experimental portable testing build. Download its versioned ZIP from
+[GitHub Releases](https://github.com/sultandilaram/jarvis/releases), extract the
+whole archive into a normal local folder, and double-click
+`JARVIS-win32-x64/JARVIS.exe`. Keep the folder in a stable location. It is unsigned;
+keep Windows security enabled and report any installation or launch block.
+
+Native fixture, physical wake/voice, correction, approvals, Stop, background wake,
+automatic Codex discovery and Notepad launch passed by owner report on the 0.8.2
+candidate. This is not independent certification or proof that every app works.
+Common browser/renderer changes still need the current release smoke checks.
 
 The app runs as an ordinary user. Native UI Automation can inspect accessible
 application controls, replace ordinary leaf text fields and invoke controls after
